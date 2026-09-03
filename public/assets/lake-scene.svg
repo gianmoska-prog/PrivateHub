@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e9f4fd"/><stop offset="1" stop-color="#f8fbfd"/></linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#dbeaf5"/><stop offset="1" stop-color="#cfe3f3"/></linearGradient>
+    <linearGradient id="m1" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ccdfed"/><stop offset="1" stop-color="#e5eff6"/></linearGradient>
+    <linearGradient id="m2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b8d2e5"/><stop offset="1" stop-color="#d7e7f2"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+  <rect width="900" height="420" fill="url(#sky)"/>
+  <circle cx="692" cy="82" r="72" fill="#fff" opacity=".45" filter="url(#blur)"/>
+  <path d="M260 220 365 94l66 80 55-69 76 91 92-100 126 137H260z" fill="url(#m1)" opacity=".75"/>
+  <path d="M350 232 457 125l60 57 53-39 87 88 85-58 116 69H350z" fill="url(#m2)" opacity=".66"/>
+  <path d="M0 249c100-25 158-15 247 0 85 14 176 11 266-2 110-16 230-21 387 4v169H0z" fill="url(#water)"/>
+  <path d="M0 272c130 12 263 12 408 2s287-8 492 5" fill="none" stroke="#f7fbfe" stroke-width="3" opacity=".75"/>
+  <path d="M0 315c142 11 270 8 403-2 135-11 280-7 497 6" fill="none" stroke="#edf7fc" stroke-width="2" opacity=".75"/>
+  <g transform="translate(625 247)" opacity=".95">
+    <path d="M0 34h142l-19 13H16z" fill="#9fb3c4"/>
+    <path d="M19 26h107l13 8H7z" fill="#e6edf2"/>
+    <path d="M26 12h24v14H26zM54 7h30v19H54zM88 11h29v15H88z" rx="4" fill="#a5b6c5"/>
+    <path d="M139 26h18v21h-18z" fill="#c4d3df"/>
+    <path d="M153 8v18M147 9h12" stroke="#8ca4b7" stroke-width="2"/>
+  </g>
+  <g transform="translate(127 257)">
+    <path d="M0 55h55l-7 7H8z" fill="#8ca5b8"/>
+    <path d="M28 0v54" stroke="#718da4" stroke-width="2"/>
+    <path d="M28 7 9 49h19z" fill="#f8fbfd" opacity=".88"/>
+    <path d="M29 14 47 49H29z" fill="#d9eaf5" opacity=".95"/>
+  </g>
+</svg>
