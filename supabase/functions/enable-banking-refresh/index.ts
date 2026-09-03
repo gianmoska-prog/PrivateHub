@@ -3,6 +3,31 @@ import { admin, cors, ebFetch, json, requireUser, safeError } from '../_shared/e
 
 const numberValue = (value: unknown) => Number(typeof value === 'object' && value ? (value as Record<string, unknown>).amount : value)
 const amountInfo = (transaction: Record<string, unknown>) => (transaction.transaction_amount || transaction.amount || {}) as Record<string, unknown>
+const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+function psuHeaders(req: Request) {
+  const headers: Record<string, string> = {}
+  const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const values = [
+    ['Psu-Ip-Address', forwardedFor],
+    ['Psu-User-Agent', req.headers.get('user-agent')],
+    ['Psu-Referer', req.headers.get('referer')],
+    ['Psu-Accept', req.headers.get('accept')],
+    ['Psu-Accept-Language', req.headers.get('accept-language')],
+  ] as const
+  for (const [name, value] of values) if (value) headers[name] = value
+  return headers
+}
+
+async function fetchWithRateLimitRetry(path: string, headers: Record<string, string>) {
+  try {
+    return await ebFetch(path, { headers })
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== 'ENABLE_BANKING_429') throw error
+    await wait(2_500)
+    return ebFetch(path, { headers })
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
@@ -17,7 +42,9 @@ Deno.serve(async (req) => {
     await db.from('bank_connections').update({ last_attempted_sync: new Date().toISOString() }).eq('id', connection.id)
     try {
       const uid = encodeURIComponent(connection.provider_account_uid)
-      const [balancesBody, transactionsBody] = await Promise.all([ebFetch(`/accounts/${uid}/balances`), ebFetch(`/accounts/${uid}/transactions?date_from=${new Date(Date.now()-90*86400000).toISOString().slice(0,10)}`)])
+      const headers = psuHeaders(req)
+      const balancesBody = await fetchWithRateLimitRetry(`/accounts/${uid}/balances`, headers)
+      const transactionsBody = await fetchWithRateLimitRetry(`/accounts/${uid}/transactions?date_from=${new Date(Date.now()-90*86400000).toISOString().slice(0,10)}`, headers)
       const balances = Array.isArray(balancesBody) ? balancesBody : (balancesBody.balances || [])
       const current = balances.find((item: Record<string, unknown>) => ['CLBD','ITAV','closingBooked'].includes(String(item.balance_type || item.name))) || balances[0]
       const available = balances.find((item: Record<string, unknown>) => ['ITBD','XAVL','interimAvailable'].includes(String(item.balance_type || item.name)))
