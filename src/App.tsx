@@ -45,6 +45,14 @@ const publicPreview: HubData = {
 
 const accountArt: Record<string, string> = {
   'Intesa Sanpaolo': assetUrl('assets/intesa-card.png'), Revolut: assetUrl('assets/revolut-card.webp'), PayPal: assetUrl('assets/paypal.webp'), Nubank: assetUrl('assets/nubank-card-gianluca.webp'),
+  'American Express': assetUrl('assets/american-express.png'),
+}
+const accountLogo: Record<string, string> = {
+  'Intesa Sanpaolo': assetUrl('assets/logo-intesa.jpg'),
+  Revolut: assetUrl('assets/logo-revolut.png'),
+  PayPal: assetUrl('assets/paypal.webp'),
+  Nubank: assetUrl('assets/logo-nubank.png'),
+  'American Express': assetUrl('assets/american-express.png'),
 }
 const membershipArt: Record<string, string> = { 'Marriott Bonvoy': assetUrl('assets/marriott.png'), 'Hilton Honors': assetUrl('assets/hilton.png') }
 
@@ -95,7 +103,7 @@ function Status({ value }: { value: string }) {
 
 function AccountCard({ account, onOpen }: { account: Account; onOpen: () => void }) {
   const art = accountArt[account.institution]
-  return <button className={`account-card ${account.status.includes('pending') ? 'is-pending' : ''}`} onClick={onOpen}>
+  return <button className={`account-card account-${account.id} ${account.status.includes('pending') ? 'is-pending' : ''}`} onClick={onOpen}>
     <div className="account-visual">
       {art ? <img src={art} alt="" /> : <span className="monogram">AE</span>}
     </div>
@@ -122,12 +130,13 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
 function DetailSheet({ selected, onClose, toast }: { selected: NonNullable<Selected>; onClose: () => void; toast: (message: string) => void }) {
   const account = selected.kind === 'account' ? selected.item : null
   const membership = selected.kind === 'membership' ? selected.item : null
+  const logo = account ? accountLogo[account.institution] : null
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); toast('Copied') }
   return <div className="sheet-layer" role="presentation" onMouseDown={onClose}>
     <section className="detail-sheet" role="dialog" aria-modal="true" aria-label={`${account?.institution ?? membership?.program_name} details`} onMouseDown={(e) => e.stopPropagation()}>
       <button className="icon-button sheet-close" onClick={onClose} aria-label="Close"><X size={20}/></button>
       {account ? <>
-        <div className="detail-brand"><span className="detail-mark">{account.institution.slice(0,2).toUpperCase()}</span><div><span className="eyebrow">Account</span><h2>{account.institution}</h2><p>{account.product_name ?? 'Application pending'}</p></div></div>
+        <div className="detail-brand"><span className={`detail-mark ${logo ? 'has-logo' : ''}`}>{logo ? <img src={logo} alt={`${account.institution} logo`}/> : account.institution.slice(0,2).toUpperCase()}</span><div><span className="eyebrow">Account</span><h2>{account.institution}</h2><p>{account.product_name ?? 'Application pending'}</p></div></div>
         <Status value={account.status}/>
         {account.status.includes('pending') ? <div className="calm-message"><h3>Application pending</h3><p>Details can be added once the account is active.</p></div> : <div className="detail-list">
           <h3>Account details</h3>
