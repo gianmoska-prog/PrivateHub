@@ -72,6 +72,13 @@ export async function selectBankAccount(accountId: string, candidateId: string) 
   return invokeBanking('enable-banking-select', { accountId, candidateId })
 }
 
+export async function updateManualAccountBalance(accountId: string, balance: number, currency: string) {
+  if (!supabase) throw new Error('Supabase is not configured')
+  if (!Number.isFinite(balance)) throw new Error('Invalid balance')
+  const { error } = await supabase.from('accounts').update({ manual_balance: balance, manual_currency: currency }).eq('id', accountId).eq('balance_mode', 'manual')
+  if (error) throw error
+}
+
 export async function saveNote(note: Partial<NoteRecord> & Pick<NoteRecord, 'title' | 'content'>) {
   if (!supabase) throw new Error('Supabase is not configured')
   const payload = { title: note.title.trim(), content: note.content.trim(), ...(note.id ? { id: note.id } : {}) }

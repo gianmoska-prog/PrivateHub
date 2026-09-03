@@ -198,6 +198,12 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .balance-block > strong { color: var(--ink); font: 600 2rem var(--serif); }
 .last-sync,.bank-empty { margin: 0; line-height: 1.55; }
 .bank-overview .soft-button { min-height: 42px; display: inline-flex; align-items: center; gap: 7px; }
+.manual-balance-form { width: 100%; display: grid; gap: 12px; }
+.manual-balance-form label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .72rem; font-weight: 650; }
+.manual-balance-form label > span { height: 48px; display: grid; grid-template-columns: 1fr auto; align-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
+.manual-balance-form input { width: 100%; height: 100%; padding: 0 12px; border: 0; outline: 0; color: var(--ink); background: transparent; font: 600 1rem var(--sans); }
+.manual-balance-form label b { padding: 0 13px; color: var(--muted); font-size: .76rem; }
+.manual-balance-form .primary-button { width: 100%; }
 .candidate-list { width: 100%; }
 .candidate-list h3 { margin: 0 0 5px; font: italic 600 1rem var(--serif); }
 .candidate-list > p { margin: 0 0 12px; color: var(--muted); font-size: .74rem; line-height: 1.5; }

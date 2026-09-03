@@ -10,6 +10,9 @@ export interface Account {
   status: string
   nickname: string | null
   notes: string | null
+  balance_mode: 'none' | 'manual'
+  manual_balance: number | null
+  manual_currency: string
   created_at: string
   updated_at: string
 }
