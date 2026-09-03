@@ -9,18 +9,41 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null
 
-const blank: HubData = { accounts: [], memberships: [], documents: [], notes: [], integrations: [] }
+const blank: HubData = { accounts: [], memberships: [], documents: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [] }
 
 export async function loadHubData(): Promise<HubData> {
   if (!supabase) return blank
-  const tables = ['accounts', 'memberships', 'documents', 'notes', 'integrations'] as const
+  const tables = ['accounts', 'memberships', 'documents', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions'] as const
   const results = await Promise.all(tables.map((table) => supabase.from(table).select('*').order('created_at', { ascending: true })))
   const failure = results.find((result) => result.error)
   if (failure?.error) throw failure.error
   return {
     accounts: results[0].data ?? [], memberships: results[1].data ?? [], documents: results[2].data ?? [],
     notes: results[3].data ?? [], integrations: results[4].data ?? [],
+    bankConnections: results[5].data ?? [], bankAccountCandidates: results[6].data ?? [], bankTransactions: results[7].data ?? [],
   } as HubData
+}
+
+async function invokeBanking(name: string, body: Record<string, unknown>) {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { data, error } = await supabase.functions.invoke(name, { body })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+export async function startBankConnection(accountId: string, language: string) {
+  const data = await invokeBanking('enable-banking-start', { accountId, language })
+  if (!data?.url || !String(data.url).startsWith('https://')) throw new Error('Invalid authorisation URL')
+  window.location.assign(data.url)
+}
+
+export async function refreshBankConnection(accountId: string) {
+  return invokeBanking('enable-banking-refresh', { accountId })
+}
+
+export async function selectBankAccount(accountId: string, candidateId: string) {
+  return invokeBanking('enable-banking-select', { accountId, candidateId })
 }
 
 export async function saveNote(note: Partial<NoteRecord> & Pick<NoteRecord, 'title' | 'content'>) {

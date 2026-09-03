@@ -3,11 +3,11 @@ import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
   Banknote, CalendarDays, Check, ChevronRight, CircleUserRound, Copy, Download, FileText,
-  FolderClosed, Home, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, Search, Settings,
+  FolderClosed, Home, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Star, Sun, Trash2, Upload, WifiOff, X,
 } from 'lucide-react'
-import { createAccount, createMembership, deleteNote, downloadDocument, isSupabaseConfigured, loadHubData, removeDocument, saveNote, supabase, uploadDocument } from './supabase'
-import type { Account, DocumentRecord, HubData, Membership, NoteRecord } from './types'
+import { createAccount, createMembership, deleteNote, downloadDocument, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocument, saveNote, selectBankAccount, startBankConnection, supabase, uploadDocument } from './supabase'
+import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentRecord, HubData, Membership, NoteRecord } from './types'
 import { usePreferences } from './preferences'
 
 type Page = 'overview' | 'accounts' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
@@ -42,6 +42,7 @@ const publicPreview: HubData = {
     { id: 'gmail', provider: 'Gmail', connection_status: 'not_connected', connected_at: null, updated_at: '' },
     { id: 'supabase', provider: 'Supabase', connection_status: 'not_connected', connected_at: null, updated_at: '' },
   ],
+  bankConnections: [], bankAccountCandidates: [], bankTransactions: [],
 }
 
 const accountArt: Record<string, string> = {
@@ -97,22 +98,23 @@ function AuthGate() {
 
 function Status({ value }: { value: string }) {
   const { t } = usePreferences()
-  const pending = value.includes('pending') || value === 'not_uploaded' || value === 'not_connected'
+  const active = value === 'active' || value === 'connected'
   const key = `status.${value}`
   const translated = t(key)
   const label = translated === key ? value.replaceAll('_', ' ') : translated
-  return <span className={`status ${pending ? 'status-muted' : 'status-active'}`}><i/>{label}</span>
+  return <span className={`status ${active ? 'status-active' : 'status-muted'}`}><i/>{label}</span>
 }
 
-function AccountCard({ account, onOpen }: { account: Account; onOpen: () => void }) {
-  const { t, identifierName } = usePreferences()
+function AccountCard({ account, connection, onOpen }: { account: Account; connection?: BankConnection; onOpen: () => void }) {
+  const { t, identifierName, locale } = usePreferences()
   const art = accountArt[account.institution]
   return <button className={`account-card account-${account.id} ${account.status.includes('pending') ? 'is-pending' : ''}`} onClick={onOpen}>
     <div className="account-visual">{art ? <img src={art} alt="" /> : <span className="monogram">AE</span>}</div>
     <strong>{account.institution}</strong>
     <span>{account.product_name ?? t('account.applicationPending')}</span>
+    {connection?.current_balance != null && <b className="account-balance">{new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.current_balance)}</b>}
     <small>{account.identifier_type ? t('account.identifierSecured', { type: identifierName(account.identifier_type) }) : t('account.noIdentifier')}</small>
-    <Status value={account.status}/>
+    <Status value={connection?.status || account.status}/>
   </button>
 }
 
@@ -130,25 +132,50 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
   return <div className="empty-state"><span><Icon size={27}/></span><h2>{title}</h2><p>{text}</p></div>
 }
 
-function DetailSheet({ selected, onClose, toast }: { selected: NonNullable<Selected>; onClose: () => void; toast: (message: string) => void }) {
-  const { t, countryName, identifierName } = usePreferences()
+function DetailSheet({ selected, connection, candidates, transactions, onClose, toast, refresh }: { selected: NonNullable<Selected>; connection?: BankConnection; candidates: BankAccountCandidate[]; transactions: BankTransaction[]; onClose: () => void; toast: (message: string) => void; refresh: () => Promise<void> }) {
+  const { t, countryName, identifierName, language, locale } = usePreferences()
   const account = selected.kind === 'account' ? selected.item : null
   const membership = selected.kind === 'membership' ? selected.item : null
+  const [tab, setTab] = useState<'overview' | 'transactions' | 'details'>('overview')
+  const [busy, setBusy] = useState(false)
   const logo = account ? accountLogo[account.institution] : null
+  const connectable = account?.status === 'active' && ['Intesa Sanpaolo', 'Revolut'].includes(account.institution)
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); toast(t('common.copied')) }
+  const connect = async () => {
+    if (!account) return
+    setBusy(true)
+    try { await startBankConnection(account.id, language) } catch (error) { toast(error instanceof Error && error.message === 'ENABLE_BANKING_NOT_CONFIGURED' ? t('bank.notConfigured') : t('bank.connectFailed')); setBusy(false) }
+  }
+  const sync = async () => {
+    if (!account) return
+    setBusy(true)
+    try { await refreshBankConnection(account.id); await refresh(); toast(t('bank.refreshed')) } catch (error) { toast(error instanceof Error && error.message === 'REFRESH_COOLDOWN' ? t('bank.cooldown') : t('bank.refreshFailed')) } finally { setBusy(false) }
+  }
+  const choose = async (candidateId: string) => {
+    if (!account) return
+    setBusy(true)
+    try { await selectBankAccount(account.id, candidateId); await refresh(); toast(t('bank.accountSelected')) } catch { toast(t('bank.selectionFailed')) } finally { setBusy(false) }
+  }
   const dialogLabel = account ? `${account.institution} — ${t('account.details')}` : `${membership?.program_name} — ${t('membership.details')}`
   return <div className="sheet-layer" role="presentation" onMouseDown={onClose}>
     <section className="detail-sheet" role="dialog" aria-modal="true" aria-label={dialogLabel} onMouseDown={(e) => e.stopPropagation()}>
       <button className="icon-button sheet-close" onClick={onClose} aria-label={t('common.close')}><X size={20}/></button>
       {account ? <>
         <div className="detail-brand"><span className={`detail-mark ${logo ? 'has-logo' : ''}`}>{logo ? <img src={logo} alt=""/> : account.institution.slice(0,2).toUpperCase()}</span><div><span className="eyebrow">{t('account.account')}</span><h2>{account.institution}</h2><p>{account.product_name ?? t('account.applicationPending')}</p></div></div>
-        <Status value={account.status}/>
-        {account.status.includes('pending') ? <div className="calm-message"><h3>{t('account.applicationPending')}</h3><p>{t('account.pendingText')}</p></div> : <div className="detail-list">
-          <h3>{t('account.details')}</h3>
-          {account.country && <div><span>{t('account.country')}</span><strong>{countryName(account.country)}</strong></div>}
-          {account.identifier_type && <div><span>{identifierName(account.identifier_type)}</span><strong className="private-value">{account.identifier_value ?? t('account.notAdded')}</strong>{account.identifier_value && <button onClick={() => copy(account.identifier_value!)}><Copy size={15}/> {t('account.copyIdentifier', { type: identifierName(account.identifier_type) })}</button>}</div>}
-          <div><span>{t('account.notes')}</span><strong>{account.notes || t('account.notAdded')}</strong></div>
-        </div>}
+        <Status value={connection?.status || account.status}/>
+        {account.status.includes('pending') ? <div className="calm-message"><h3>{t('account.applicationPending')}</h3><p>{t('account.pendingText')}</p></div> : <>
+          <div className="detail-tabs" role="tablist"><button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>{t('bank.overview')}</button><button className={tab === 'transactions' ? 'active' : ''} onClick={() => setTab('transactions')}>{t('bank.transactions')}</button><button className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>{t('account.details')}</button></div>
+          {tab === 'overview' && <div className="bank-overview">
+            {connection?.current_balance != null ? <div className="balance-block"><span>{t('bank.currentBalance')}</span><strong>{new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.current_balance)}</strong>{connection.available_balance != null && <small>{t('bank.available')}: {new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.available_balance)}</small>}</div> : <p className="bank-empty">{connectable ? t('bank.connectDescription') : t('bank.notAvailable')}</p>}
+            {connection?.last_successful_sync && <p className="last-sync">{t('bank.lastSynced')} {new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(connection.last_successful_sync))}</p>}
+            {connectable && (!connection || ['disconnected','reconnect_required'].includes(connection.status)) && <button className="primary-button" disabled={busy} onClick={connect}>{connection?.status === 'reconnect_required' ? t('bank.reconnect') : t('bank.connect')}</button>}
+            {connection?.status === 'connected' && <button className="soft-button" disabled={busy} onClick={sync}><RefreshCw size={16}/>{busy ? t('bank.refreshing') : t('bank.refresh')}</button>}
+            {connection?.status === 'temporarily_unavailable' && <p className="form-error">{t('bank.unableRefresh')}</p>}
+            {connection?.status === 'selection_required' && <div className="candidate-list"><h3>{t('bank.chooseAccount')}</h3><p>{t('bank.chooseAccountText')}</p>{candidates.map(candidate => <button key={candidate.id} disabled={busy} onClick={() => choose(candidate.id)}><span><strong>{candidate.display_name || account.product_name}</strong><small>{[candidate.masked_identifier, candidate.currency].filter(Boolean).join(' · ')}</small></span><ChevronRight size={17}/></button>)}</div>}
+          </div>}
+          {tab === 'transactions' && <div className="transaction-list">{transactions.length ? transactions.map(transaction => <article key={transaction.id}><div><strong>{transaction.counterparty || transaction.description || t('bank.transaction')}</strong><small>{transaction.booking_date ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(`${transaction.booking_date}T12:00:00`)) : ''}{transaction.status === 'pending' ? ` · ${t('bank.pending')}` : ''}</small></div><b className={transaction.amount < 0 ? 'debit' : 'credit'}>{new Intl.NumberFormat(locale, { style: 'currency', currency: transaction.currency }).format(transaction.amount)}</b></article>) : <p className="bank-empty">{connection ? t('bank.noTransactions') : t('bank.connectForTransactions')}</p>}</div>}
+          {tab === 'details' && <div className="detail-list"><h3>{t('account.details')}</h3>{account.country && <div><span>{t('account.country')}</span><strong>{countryName(account.country)}</strong></div>}{account.identifier_type && <div><span>{identifierName(account.identifier_type)}</span><strong className="private-value">{account.identifier_value ?? t('account.notAdded')}</strong>{account.identifier_value && <button onClick={() => copy(account.identifier_value!)}><Copy size={15}/> {t('account.copyIdentifier', { type: identifierName(account.identifier_type) })}</button>}</div>}<div><span>{t('account.notes')}</span><strong>{account.notes || t('account.notAdded')}</strong></div></div>}
+        </>}
       </> : membership && <>
         <div className="detail-brand"><span className="detail-mark"><Star size={22}/></span><div><span className="eyebrow">{t('membership.membership')}</span><h2>{membership.program_name}</h2><p>{membership.provider}</p></div></div>
         <Status value={membership.status}/>
@@ -236,7 +263,7 @@ function CreateRecordSheet({ kind, preview, onClose, refresh, toast }: { kind: '
   </form></div>
 }
 
-function SettingsView({ preview, integrationStatus }: { preview: boolean; integrationStatus: (provider: string) => string }) {
+function SettingsView({ preview, integrationStatus, bankConnections }: { preview: boolean; integrationStatus: (provider: string) => string; bankConnections: BankConnection[] }) {
   const { t, theme, setTheme, language, setLanguage } = usePreferences()
   return <>
     <PageHeader eyebrow="Private Hub" title={t('nav.settings')}/>
@@ -256,7 +283,7 @@ function SettingsView({ preview, integrationStatus }: { preview: boolean; integr
         </article>
       </div>
     </section>
-    <section className="settings-section"><h2>{t('settings.integrations')}</h2><div className="integration-grid"><article><span className="integration-icon gmail">M</span><div><h3>Gmail</h3><p>{t('settings.gmailText')}</p></div><Status value={integrationStatus('Gmail')}/></article><article><span className="integration-icon supabase">S</span><div><h3>Supabase</h3><p>{t('settings.supabaseText')}</p></div><Status value={preview ? 'not_connected' : integrationStatus('Supabase')}/></article></div></section>
+    <section className="settings-section"><h2>{t('settings.integrations')}</h2><div className="integration-grid"><article><span className="integration-icon gmail">M</span><div><h3>Gmail</h3><p>{t('settings.gmailText')}</p></div><Status value={integrationStatus('Gmail')}/></article><article><span className="integration-icon supabase">S</span><div><h3>Supabase</h3><p>{t('settings.supabaseText')}</p></div><Status value={preview ? 'not_connected' : integrationStatus('Supabase')}/></article><article className="banking-integration"><span className="integration-icon banking">EB</span><div><h3>Enable Banking</h3><p>{t('settings.bankingText')}</p><div className="bank-provider-status"><span>Intesa <Status value={bankConnections.find(item => item.institution === 'Intesa Sanpaolo')?.status || 'not_connected'}/></span><span>Revolut <Status value={bankConnections.find(item => item.institution === 'Revolut')?.status || 'not_connected'}/></span><span>PayPal <Status value="not_connected"/></span></div></div><Status value={bankConnections.some(item => item.status === 'connected') ? 'connected' : integrationStatus('Enable Banking')}/></article></div></section>
     <section className="settings-section"><h2>{t('settings.privacy')}</h2><div className="privacy-card"><ShieldCheck size={24}/><div><h3>{t('settings.privateByDesign')}</h3><p>{t('settings.privacyText')}</p></div></div></section>
   </>
 }
@@ -284,6 +311,17 @@ function App() {
     return () => listener.subscription.unsubscribe()
   }, [])
   useEffect(() => { if (session) refresh().catch(() => toast(t('app.connectFailed'))) }, [session])
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const banking = params.get('banking')
+    if (!banking) return
+    if (banking === 'connected') toast(t('bank.refreshed'))
+    else if (banking === 'select') toast(t('bank.chooseAccount'))
+    else toast(t('bank.connectFailed'))
+    params.delete('banking'); params.delete('account')
+    const queryString = params.toString()
+    history.replaceState(null, '', `${window.location.pathname}${queryString ? `?${queryString}` : ''}${window.location.hash}`)
+  }, [])
   useEffect(() => { const update = () => setOnline(navigator.onLine); addEventListener('online', update); addEventListener('offline', update); return () => { removeEventListener('online', update); removeEventListener('offline', update) } }, [])
   useEffect(() => { if (!selected) return; const close = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null); addEventListener('keydown', close); return () => removeEventListener('keydown', close) }, [selected])
   useEffect(() => {
@@ -333,21 +371,21 @@ function App() {
         {page === 'overview' && <>
           <section className="hero"><div><span className="eyebrow">{t('overview.eyebrow')}</span><h1>{t('overview.welcome')}</h1><p>{t('overview.subtitle')}</p><i/></div><img src={assetUrl('assets/lake-scene.svg')} alt=""/></section>
           <div className="dashboard-grid">
-            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{filtered.accounts.slice(0,5).map((item) => <AccountCard key={item.id} account={item} onOpen={() => setSelected({kind:'account',item})}/>)}</div></section>
+            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{filtered.accounts.slice(0,5).map((item) => <AccountCard key={item.id} account={item} connection={data.bankConnections.find(connection => connection.canonical_account_id === item.id)} onOpen={() => setSelected({kind:'account',item})}/>)}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>{t('overview.quickAccess')}</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>{t('records.addAccount')}</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>{t('records.addMembership')}</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>{t('overview.uploadDocument')}</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>{t('overview.openNotes')}</button></div></section>
             <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
             <section className="panel document-summary"><div className="panel-heading"><h2>{t('overview.documents')}</h2><button onClick={() => showPage('documents')}>{t('common.open')} <ChevronRight size={15}/></button></div><div className="summary-list"><p><span>{t('overview.italianAwaiting')}</span><strong>{data.documents.filter(x => x.country === 'Italy' && x.status === 'not_uploaded').length}</strong></p><p><span>{t('overview.brazilianAwaiting')}</span><strong>{data.documents.filter(x => x.country === 'Brazil' && x.status === 'not_uploaded').length}</strong></p><p><span>{t('overview.licenceConversion')}</span><Status value="pending"/></p></div></section>
           </div>
         </>}
-        {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{filtered.accounts.map((item) => <AccountCard key={item.id} account={item} onOpen={() => setSelected({kind:'account',item})}/>)}</div></>}
+        {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{filtered.accounts.map((item) => <AccountCard key={item.id} account={item} connection={data.bankConnections.find(connection => connection.canonical_account_id === item.id)} onOpen={() => setSelected({kind:'account',item})}/>)}</div></>}
         {page === 'memberships' && <><PageHeader eyebrow={t('pages.loyalty')} title={t('nav.memberships')} action={<button className="primary-button compact" onClick={() => setCreateKind('membership')}><Plus size={17}/> {t('records.addMembership')}</button>}/><section className="panel standalone-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</section></>}
         {page === 'travel' && <><PageHeader eyebrow={t('pages.journeys')} title={t('nav.travel')}/><section className="panel empty-panel"><EmptyState icon={Plane} title={t('pages.travelEmptyTitle')} text={t('pages.travelEmptyText')}/></section></>}
         {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} refresh={refresh} toast={toast}/>)}</div></div></>}
         {page === 'notes' && <NotesView notes={filtered.notes} preview={preview} refresh={refresh} toast={toast}/>} 
-        {page === 'settings' && <SettingsView preview={preview} integrationStatus={integrationStatus}/>} 
+        {page === 'settings' && <SettingsView preview={preview} integrationStatus={integrationStatus} bankConnections={data.bankConnections}/>}
       </div>
     </main>
-    {selected && <DetailSheet selected={selected} onClose={() => setSelected(null)} toast={toast}/>} 
+    {selected && <DetailSheet selected={selected} connection={selected.kind === 'account' ? data.bankConnections.find(connection => connection.canonical_account_id === selected.item.id) : undefined} candidates={selected.kind === 'account' ? data.bankAccountCandidates.filter(candidate => candidate.canonical_account_id === selected.item.id) : []} transactions={selected.kind === 'account' ? data.bankTransactions.filter(transaction => data.bankConnections.find(connection => connection.id === transaction.bank_connection_id)?.canonical_account_id === selected.item.id) : []} onClose={() => setSelected(null)} toast={toast} refresh={refresh}/>}
     {createKind && <CreateRecordSheet kind={createKind} preview={preview} onClose={() => setCreateKind(null)} refresh={refresh} toast={toast}/>} 
     <div className={`toast ${toastText ? 'show' : ''}`} role="status"><Check size={16}/>{toastText}</div>
   </div>

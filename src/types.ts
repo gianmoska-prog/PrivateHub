@@ -56,10 +56,54 @@ export interface IntegrationRecord {
   updated_at: string
 }
 
+export type BankConnectionStatus = 'connecting' | 'selection_required' | 'connected' | 'action_required' | 'reconnect_required' | 'temporarily_unavailable' | 'disconnected'
+
+export interface BankConnection {
+  id: string
+  canonical_account_id: string
+  institution: string
+  currency: string | null
+  current_balance: number | null
+  available_balance: number | null
+  status: BankConnectionStatus
+  last_successful_sync: string | null
+  last_attempted_sync: string | null
+  consent_expires_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BankAccountCandidate {
+  id: string
+  canonical_account_id: string
+  display_name: string | null
+  masked_identifier: string | null
+  currency: string | null
+  created_at: string
+}
+
+export interface BankTransaction {
+  id: string
+  bank_connection_id: string
+  external_transaction_id: string
+  transaction_date: string | null
+  booking_date: string | null
+  description: string
+  counterparty: string | null
+  amount: number
+  currency: string
+  status: 'pending' | 'booked'
+  created_at: string
+  updated_at: string
+}
+
 export interface HubData {
   accounts: Account[]
   memberships: Membership[]
   documents: DocumentRecord[]
   notes: NoteRecord[]
   integrations: IntegrationRecord[]
+  bankConnections: BankConnection[]
+  bankAccountCandidates: BankAccountCandidate[]
+  bankTransactions: BankTransaction[]
 }

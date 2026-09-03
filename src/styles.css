@@ -93,6 +93,7 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .account-card > strong { max-width: 100%; margin-bottom: 6px; overflow: hidden; color: #1b2b49; font-size: .77rem; text-overflow: ellipsis; white-space: nowrap; }
 .account-card > span:not(.status) { max-width: 100%; overflow: hidden; color: #65758b; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .account-card > small { margin-top: 5px; color: #929ead; font-size: .67rem; }
+.account-card .account-balance { margin: 5px 0 0; color: var(--ink); font: 600 .9rem var(--serif); }
 .status { margin-top: auto; padding: 5px 8px; display: inline-flex; align-items: center; gap: 5px; border-radius: 8px; font-size: .67rem; font-weight: 650; text-transform: capitalize; white-space: nowrap; }
 .status i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .status-active { color: var(--green); background: var(--green-soft); }
@@ -160,6 +161,11 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .integration-icon { width: 48px; height: 48px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 14px; font: 700 1.1rem var(--serif); }
 .integration-icon.gmail { color: #b53b37; background: #fff0ef; }
 .integration-icon.supabase { color: #168d65; background: #e7f8f1; }
+.integration-icon.banking { color: #315e9d; background: #eaf2ff; font-size: .75rem; }
+.integration-grid .banking-integration { grid-column: 1 / -1; align-items: flex-start; }
+.bank-provider-status { margin-top: 11px; display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.bank-provider-status > span { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: .7rem; font-weight: 650; }
+.bank-provider-status .status { margin: 0; position: static; }
 .integration-grid h3,.privacy-card h3 { margin: 0; font-size: .88rem; }
 .integration-grid p,.privacy-card p { margin: 5px 0 0; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .integration-grid .status { margin: 0 0 0 auto; }
@@ -177,6 +183,29 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .detail-brand h2 { margin: 0; font: 600 1.55rem var(--serif); }
 .detail-brand p { margin: 5px 0 0; color: var(--muted); font-size: .8rem; }
 .detail-sheet > .status { margin: 0 0 24px 74px; }
+.detail-tabs { margin: 4px 0 18px; padding: 4px; display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.detail-tabs button { min-height: 38px; padding: 0 8px; border: 0; border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; font-size: .72rem; font-weight: 650; }
+.detail-tabs button.active { color: var(--blue); background: #fff; box-shadow: 0 3px 10px rgba(42,73,105,.08); }
+.bank-overview { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.balance-block { width: 100%; padding: 22px; display: flex; flex-direction: column; gap: 7px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface-soft); }
+.balance-block > span,.balance-block > small,.last-sync,.bank-empty { color: var(--muted); font-size: .74rem; }
+.balance-block > strong { color: var(--ink); font: 600 2rem var(--serif); }
+.last-sync,.bank-empty { margin: 0; line-height: 1.55; }
+.bank-overview .soft-button { min-height: 42px; display: inline-flex; align-items: center; gap: 7px; }
+.candidate-list { width: 100%; }
+.candidate-list h3 { margin: 0 0 5px; font: italic 600 1rem var(--serif); }
+.candidate-list > p { margin: 0 0 12px; color: var(--muted); font-size: .74rem; line-height: 1.5; }
+.candidate-list > button { width: 100%; min-height: 62px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: var(--surface); cursor: pointer; text-align: left; }
+.candidate-list > button + button { margin-top: 8px; }
+.candidate-list > button span { display: flex; flex-direction: column; gap: 4px; }
+.candidate-list small { color: var(--muted); }
+.transaction-list { display: flex; flex-direction: column; }
+.transaction-list article { min-height: 66px; padding: 12px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--line); }
+.transaction-list article > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.transaction-list article strong { overflow: hidden; font-size: .79rem; text-overflow: ellipsis; white-space: nowrap; }
+.transaction-list article small { color: var(--muted); font-size: .68rem; }
+.transaction-list article > b { flex: 0 0 auto; font-size: .78rem; }
+.transaction-list .credit { color: var(--green); }
 .detail-list { margin-top: 16px; }
 .detail-list h3 { margin: 0; padding: 18px 0; border-bottom: 1px solid var(--line); font: italic 600 1.03rem var(--serif); }
 .detail-list > div { min-height: 78px; padding: 16px 0; display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; border-bottom: 1px solid #e9edf1; }
@@ -428,6 +457,9 @@ html, body, .hub-shell, .sidebar, .panel, .account-card, .quick-grid button, .me
 :root[data-theme="dark"] .note-delete:hover { background: #351f25; }
 :root[data-theme="dark"] .integration-icon.gmail { color: #e29490; background: #392326; }
 :root[data-theme="dark"] .integration-icon.supabase { color: #75c9a9; background: #19362f; }
+:root[data-theme="dark"] .integration-icon.banking { color: #94bcfb; background: #1b3150; }
+:root[data-theme="dark"] .detail-tabs button.active { color: #a7caff; background: #24364b; }
+:root[data-theme="dark"] .balance-block { background: #182433; }
 :root[data-theme="dark"] .theme-toggle { background: #101924; }
 :root[data-theme="dark"] .theme-toggle button.selected { color: #a7caff; background: #24364b; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
 :root[data-theme="dark"] .language-select { background: #182433; }
@@ -462,5 +494,10 @@ html, body, .hub-shell, .sidebar, .panel, .account-card, .quick-grid button, .me
   .preference-icon { width: 44px; height: 44px; border-radius: 13px; }
   .theme-toggle button { min-height: 44px; }
   .language-select { height: 46px; }
+  .banking-integration { padding-bottom: 62px !important; }
+  .banking-integration > .status { bottom: 16px; left: 18px; margin: 0 !important; }
+  .bank-provider-status { display: grid; grid-template-columns: 1fr; }
+  .detail-tabs { position: sticky; top: -16px; z-index: 2; }
+  .balance-block > strong { font-size: 1.7rem; }
 }
 :root[data-theme="dark"] .membership-logo img[src*="marriott"] { filter: brightness(0) invert(1); opacity: .9; }

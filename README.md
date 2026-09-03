@@ -31,6 +31,16 @@ The app uses passwordless email authentication. The owner email is stored only i
 
 The service worker caches only the static shell and same-origin static assets. Requests to Supabase Auth, REST, and Storage are explicitly excluded from caching. Documents are stored in the private `private-hub-documents` bucket and are never placed in `public/` or committed to Git.
 
+## Read-only Open Banking
+
+Enable Banking runs entirely through Supabase Edge Functions. The browser can start an authenticated consent flow, but application JWT signing, the private key, callback validation, session exchange and provider calls remain server-side. The callback URL is:
+
+`https://gsnblmxskygftpupsmbv.supabase.co/functions/v1/enable-banking-callback`
+
+The backend discovers the current Italian ASPSP name at connection time, requests only balances and transactions, matches returned accounts against the canonical private record, and asks for one-time selection when a match is ambiguous. Refreshes have a cooldown and retain the last successful data on failure. There are deliberately no payment endpoints.
+
+Runtime secrets belong only in the dedicated Supabase project as `ENABLE_BANKING_APP_ID` and `ENABLE_BANKING_PRIVATE_KEY`. Never place their values in local env files, GitHub, frontend variables, logs or chat.
+
 ## Checks
 
 - `npm run typecheck`
