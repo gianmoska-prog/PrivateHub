@@ -1,0 +1,134 @@
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+
+export type Theme = 'light' | 'dark'
+export type Language = 'en' | 'it' | 'es'
+
+type Dictionary = Record<string, string>
+
+type PreferencesValue = {
+  theme: Theme
+  setTheme: (theme: Theme) => void
+  language: Language
+  setLanguage: (language: Language) => void
+  t: (key: string, vars?: Record<string, string | number>) => string
+  locale: string
+  countryName: (country: string | null) => string
+  documentName: (documentType: string) => string
+  identifierName: (identifierType: string | null) => string
+}
+
+const dictionaries: Record<Language, Dictionary> = {
+  en: {
+    'nav.overview': 'Overview', 'nav.accounts': 'Accounts', 'nav.memberships': 'Memberships', 'nav.travel': 'Travel', 'nav.documents': 'Documents', 'nav.notes': 'Notes', 'nav.settings': 'Settings',
+    'auth.privateAccess': 'Private access', 'auth.title': 'Your personal world,\nquietly organised.', 'auth.description': 'Sign in with your authorised email. We’ll send you a secure link—no password to remember.', 'auth.checkInbox': 'Check your inbox', 'auth.linkReady': 'The sign-in link is ready.', 'auth.email': 'Email address', 'auth.placeholder': 'you@example.com', 'auth.unableSend': 'Unable to send the sign-in link. Try again.', 'auth.sending': 'Sending…', 'auth.sendLink': 'Send secure link', 'auth.protected': 'Protected by authentication and row-level security',
+    'status.active': 'Active', 'status.pending': 'Pending', 'status.not_uploaded': 'Not uploaded', 'status.connected': 'Connected', 'status.not_connected': 'Not connected',
+    'account.applicationPending': 'Application pending', 'account.identifierSecured': '{{type}} secured', 'account.noIdentifier': 'No identifier added', 'account.account': 'Account', 'account.details': 'Account details', 'account.country': 'Country', 'account.notAdded': 'Not added', 'account.notes': 'Notes', 'account.pendingText': 'Details can be added once the account is active.', 'account.copyIdentifier': 'Copy {{type}}',
+    'membership.membership': 'Membership', 'membership.numberState': 'Membership number {{state}}', 'membership.secured': 'secured', 'membership.notAddedLower': 'not added', 'membership.details': 'Membership details', 'membership.number': 'Membership number', 'membership.copyNumber': 'Copy number', 'membership.tier': 'Tier', 'membership.points': 'Points / miles', 'membership.notConnected': 'Not connected', 'membership.memberSince': 'Member since',
+    'common.copied': 'Copied', 'common.close': 'Close', 'common.open': 'Open', 'common.viewAll': 'View all', 'common.save': 'Save', 'common.saving': 'Saving…', 'common.delete': 'Delete', 'common.download': 'Download', 'common.replace': 'Replace', 'common.view': 'View',
+    'documents.uploaded': 'Document uploaded securely', 'documents.uploadFailed': 'Upload failed', 'documents.deleteConfirm': 'Delete {{name}}? This cannot be undone.', 'documents.deleted': 'Document deleted', 'documents.deleteFailed': 'Unable to delete document', 'documents.readyUpload': 'Ready for a secure upload', 'documents.licencePending': 'Driving licence conversion pending', 'documents.uploading': 'Uploading…', 'documents.upload': 'Upload', 'documents.privateStorage': 'Private storage', 'documents.identityHealth': 'Identity and health documents', 'documents.personalRecords': 'Personal records',
+    'notes.connect': 'Connect Supabase to save notes', 'notes.saved': 'Note saved', 'notes.saveFailed': 'Unable to save note', 'notes.privateWriting': 'Private writing', 'notes.new': 'New note', 'notes.deleteLabel': 'Delete {{title}}', 'notes.deleteConfirm': 'Delete “{{title}}”?', 'notes.deleted': 'Note deleted', 'notes.emptyTitle': 'No notes yet', 'notes.emptyText': 'Create a private note when you have something worth keeping.', 'notes.privateNote': 'Private note', 'notes.title': 'Note title', 'notes.startWriting': 'Start writing…', 'notes.save': 'Save note',
+    'records.connect': 'Connect Supabase to add private records', 'records.accountAdded': 'Account added', 'records.membershipAdded': 'Membership added', 'records.saveFailed': 'Unable to save this record', 'records.privateRecord': 'Private record', 'records.addAccount': 'Add account', 'records.addMembership': 'Add membership', 'records.institution': 'Institution', 'records.product': 'Product', 'records.country': 'Country', 'records.identifierType': 'Identifier type', 'records.identifierHint': 'IBAN, email, customer ID…', 'records.identifierValue': 'Identifier value', 'records.provider': 'Provider', 'records.programme': 'Programme', 'records.membershipNumber': 'Membership number', 'records.storageHint': 'This record is stored in the private database and scoped to your account.',
+    'app.connectFailed': 'Unable to connect', 'app.primaryNavigation': 'Primary navigation', 'app.privateSpace': 'Your private space', 'app.securePreview': 'Secure preview', 'app.encryptedAccess': 'Encrypted access', 'app.closeNavigation': 'Close navigation', 'app.openNavigation': 'Open navigation', 'app.search': 'Search your hub…', 'app.previewMode': 'Secure preview mode', 'app.preview': 'Preview', 'app.personal': 'Personal', 'app.offline': 'You’re offline. Private data is not cached.',
+    'overview.eyebrow': 'Personal overview', 'overview.welcome': 'Welcome back, Gianluca.', 'overview.subtitle': 'Everything important, calmly in reach.', 'overview.accounts': 'Accounts', 'overview.quickAccess': 'Quick access', 'overview.uploadDocument': 'Upload document', 'overview.openNotes': 'Open notes', 'overview.memberships': 'Memberships', 'overview.documents': 'Documents', 'overview.italianAwaiting': 'Italian documents awaiting upload', 'overview.brazilianAwaiting': 'Brazilian documents awaiting upload', 'overview.licenceConversion': 'Driving licence conversion',
+    'pages.financialServices': 'Financial services', 'pages.loyalty': 'Loyalty programmes', 'pages.journeys': 'Journeys', 'pages.travelEmptyTitle': 'No trips added yet', 'pages.travelEmptyText': 'Travel plans will appear here when you’re ready to add them.',
+    'settings.integrations': 'Integrations', 'settings.gmailText': 'Connector status only. Inbox access is disabled.', 'settings.supabaseText': 'Authentication, private data and document storage.', 'settings.privacy': 'Privacy', 'settings.privateByDesign': 'Private by design', 'settings.privacyText': 'Identifiers appear only after authentication. Sensitive API responses are never cached by the service worker.',
+    'settings.personalisation': 'Personalisation', 'settings.appearance': 'Appearance', 'settings.appearanceText': 'Choose the visual style that feels most comfortable.', 'settings.light': 'Light', 'settings.dark': 'Dark', 'settings.language': 'Language', 'settings.languageText': 'Choose the language used throughout Private Hub.', 'settings.english': 'English', 'settings.italian': 'Italiano', 'settings.spanish': 'Español',
+    'country.Italy': 'Italy', 'country.Brazil': 'Brazil',
+    'identifier.Email': 'Email', 'identifier.IBAN': 'IBAN', 'identifier.Chave PIX': 'Chave PIX',
+    'document.Passport': 'Passport', 'document.Carta d’identità': 'Carta d’identità', 'document.Carta d\'identità': 'Carta d’identità', 'document.Tessera Sanitaria': 'Tessera Sanitaria', 'document.Patente italiana': 'Patente italiana', 'document.RG': 'RG', 'document.CPF': 'CPF', 'document.CNH': 'CNH',
+  },
+  it: {
+    'nav.overview': 'Panoramica', 'nav.accounts': 'Conti', 'nav.memberships': 'Programmi fedeltà', 'nav.travel': 'Viaggi', 'nav.documents': 'Documenti', 'nav.notes': 'Note', 'nav.settings': 'Impostazioni',
+    'auth.privateAccess': 'Accesso privato', 'auth.title': 'Il tuo mondo personale,\norganizzato con discrezione.', 'auth.description': 'Accedi con la tua email autorizzata. Ti invieremo un link sicuro, senza password da ricordare.', 'auth.checkInbox': 'Controlla la posta', 'auth.linkReady': 'Il link di accesso è pronto.', 'auth.email': 'Indirizzo email', 'auth.placeholder': 'tu@esempio.com', 'auth.unableSend': 'Impossibile inviare il link di accesso. Riprova.', 'auth.sending': 'Invio…', 'auth.sendLink': 'Invia link sicuro', 'auth.protected': 'Protetto da autenticazione e sicurezza a livello di riga',
+    'status.active': 'Attivo', 'status.pending': 'In attesa', 'status.not_uploaded': 'Non caricato', 'status.connected': 'Connesso', 'status.not_connected': 'Non connesso',
+    'account.applicationPending': 'Richiesta in attesa', 'account.identifierSecured': '{{type}} protetto', 'account.noIdentifier': 'Nessun identificativo aggiunto', 'account.account': 'Conto', 'account.details': 'Dettagli del conto', 'account.country': 'Paese', 'account.notAdded': 'Non aggiunto', 'account.notes': 'Note', 'account.pendingText': 'I dettagli potranno essere aggiunti quando il conto sarà attivo.', 'account.copyIdentifier': 'Copia {{type}}',
+    'membership.membership': 'Programma', 'membership.numberState': 'Numero iscrizione {{state}}', 'membership.secured': 'protetto', 'membership.notAddedLower': 'non aggiunto', 'membership.details': 'Dettagli del programma', 'membership.number': 'Numero iscrizione', 'membership.copyNumber': 'Copia numero', 'membership.tier': 'Livello', 'membership.points': 'Punti / miglia', 'membership.notConnected': 'Non connesso', 'membership.memberSince': 'Iscritto dal',
+    'common.copied': 'Copiato', 'common.close': 'Chiudi', 'common.open': 'Apri', 'common.viewAll': 'Vedi tutti', 'common.save': 'Salva', 'common.saving': 'Salvataggio…', 'common.delete': 'Elimina', 'common.download': 'Scarica', 'common.replace': 'Sostituisci', 'common.view': 'Visualizza',
+    'documents.uploaded': 'Documento caricato in modo sicuro', 'documents.uploadFailed': 'Caricamento non riuscito', 'documents.deleteConfirm': 'Eliminare {{name}}? L’operazione non può essere annullata.', 'documents.deleted': 'Documento eliminato', 'documents.deleteFailed': 'Impossibile eliminare il documento', 'documents.readyUpload': 'Pronto per un caricamento sicuro', 'documents.licencePending': 'Conversione della patente in attesa', 'documents.uploading': 'Caricamento…', 'documents.upload': 'Carica', 'documents.privateStorage': 'Archivio privato', 'documents.identityHealth': 'Documenti di identità e sanitari', 'documents.personalRecords': 'Documenti personali',
+    'notes.connect': 'Collega Supabase per salvare le note', 'notes.saved': 'Nota salvata', 'notes.saveFailed': 'Impossibile salvare la nota', 'notes.privateWriting': 'Scrittura privata', 'notes.new': 'Nuova nota', 'notes.deleteLabel': 'Elimina {{title}}', 'notes.deleteConfirm': 'Eliminare “{{title}}”?', 'notes.deleted': 'Nota eliminata', 'notes.emptyTitle': 'Nessuna nota', 'notes.emptyText': 'Crea una nota privata quando hai qualcosa che desideri conservare.', 'notes.privateNote': 'Nota privata', 'notes.title': 'Titolo della nota', 'notes.startWriting': 'Inizia a scrivere…', 'notes.save': 'Salva nota',
+    'records.connect': 'Collega Supabase per aggiungere dati privati', 'records.accountAdded': 'Conto aggiunto', 'records.membershipAdded': 'Programma aggiunto', 'records.saveFailed': 'Impossibile salvare questo elemento', 'records.privateRecord': 'Dato privato', 'records.addAccount': 'Aggiungi conto', 'records.addMembership': 'Aggiungi programma', 'records.institution': 'Istituto', 'records.product': 'Prodotto', 'records.country': 'Paese', 'records.identifierType': 'Tipo di identificativo', 'records.identifierHint': 'IBAN, email, ID cliente…', 'records.identifierValue': 'Valore identificativo', 'records.provider': 'Fornitore', 'records.programme': 'Programma', 'records.membershipNumber': 'Numero iscrizione', 'records.storageHint': 'Questo dato viene salvato nel database privato ed è accessibile esclusivamente dal tuo account.',
+    'app.connectFailed': 'Impossibile connettersi', 'app.primaryNavigation': 'Navigazione principale', 'app.privateSpace': 'Il tuo spazio privato', 'app.securePreview': 'Anteprima sicura', 'app.encryptedAccess': 'Accesso protetto', 'app.closeNavigation': 'Chiudi navigazione', 'app.openNavigation': 'Apri navigazione', 'app.search': 'Cerca nel tuo hub…', 'app.previewMode': 'Modalità anteprima sicura', 'app.preview': 'Anteprima', 'app.personal': 'Personale', 'app.offline': 'Sei offline. I dati privati non vengono memorizzati nella cache.',
+    'overview.eyebrow': 'Panoramica personale', 'overview.welcome': 'Bentornato, Gianluca.', 'overview.subtitle': 'Tutto ciò che conta, sempre a portata di mano.', 'overview.accounts': 'Conti', 'overview.quickAccess': 'Accesso rapido', 'overview.uploadDocument': 'Carica documento', 'overview.openNotes': 'Apri note', 'overview.memberships': 'Programmi fedeltà', 'overview.documents': 'Documenti', 'overview.italianAwaiting': 'Documenti italiani da caricare', 'overview.brazilianAwaiting': 'Documenti brasiliani da caricare', 'overview.licenceConversion': 'Conversione patente',
+    'pages.financialServices': 'Servizi finanziari', 'pages.loyalty': 'Programmi fedeltà', 'pages.journeys': 'Viaggi', 'pages.travelEmptyTitle': 'Nessun viaggio aggiunto', 'pages.travelEmptyText': 'I tuoi programmi di viaggio appariranno qui quando vorrai aggiungerli.',
+    'settings.integrations': 'Integrazioni', 'settings.gmailText': 'Solo stato della connessione. L’accesso alla posta è disattivato.', 'settings.supabaseText': 'Autenticazione, dati privati e archivio documenti.', 'settings.privacy': 'Privacy', 'settings.privateByDesign': 'Privato per impostazione', 'settings.privacyText': 'Gli identificativi sono visibili solo dopo l’autenticazione. Le risposte sensibili delle API non vengono mai memorizzate nella cache dal service worker.',
+    'settings.personalisation': 'Personalizzazione', 'settings.appearance': 'Aspetto', 'settings.appearanceText': 'Scegli lo stile visivo che preferisci.', 'settings.light': 'Chiaro', 'settings.dark': 'Scuro', 'settings.language': 'Lingua', 'settings.languageText': 'Scegli la lingua utilizzata in tutto Private Hub.', 'settings.english': 'English', 'settings.italian': 'Italiano', 'settings.spanish': 'Español',
+    'country.Italy': 'Italia', 'country.Brazil': 'Brasile',
+    'identifier.Email': 'Email', 'identifier.IBAN': 'IBAN', 'identifier.Chave PIX': 'Chave PIX',
+    'document.Passport': 'Passaporto', 'document.Carta d’identità': 'Carta d’identità', 'document.Carta d\'identità': 'Carta d’identità', 'document.Tessera Sanitaria': 'Tessera Sanitaria', 'document.Patente italiana': 'Patente italiana', 'document.RG': 'RG', 'document.CPF': 'CPF', 'document.CNH': 'CNH',
+  },
+  es: {
+    'nav.overview': 'Resumen', 'nav.accounts': 'Cuentas', 'nav.memberships': 'Membresías', 'nav.travel': 'Viajes', 'nav.documents': 'Documentos', 'nav.notes': 'Notas', 'nav.settings': 'Ajustes',
+    'auth.privateAccess': 'Acceso privado', 'auth.title': 'Tu mundo personal,\norganizado con discreción.', 'auth.description': 'Inicia sesión con tu correo autorizado. Te enviaremos un enlace seguro, sin contraseña que recordar.', 'auth.checkInbox': 'Revisa tu correo', 'auth.linkReady': 'El enlace de acceso está listo.', 'auth.email': 'Correo electrónico', 'auth.placeholder': 'tu@ejemplo.com', 'auth.unableSend': 'No se pudo enviar el enlace de acceso. Inténtalo de nuevo.', 'auth.sending': 'Enviando…', 'auth.sendLink': 'Enviar enlace seguro', 'auth.protected': 'Protegido mediante autenticación y seguridad a nivel de fila',
+    'status.active': 'Activo', 'status.pending': 'Pendiente', 'status.not_uploaded': 'Sin subir', 'status.connected': 'Conectado', 'status.not_connected': 'No conectado',
+    'account.applicationPending': 'Solicitud pendiente', 'account.identifierSecured': '{{type}} protegido', 'account.noIdentifier': 'Sin identificador añadido', 'account.account': 'Cuenta', 'account.details': 'Detalles de la cuenta', 'account.country': 'País', 'account.notAdded': 'Sin añadir', 'account.notes': 'Notas', 'account.pendingText': 'Los detalles podrán añadirse cuando la cuenta esté activa.', 'account.copyIdentifier': 'Copiar {{type}}',
+    'membership.membership': 'Membresía', 'membership.numberState': 'Número de membresía {{state}}', 'membership.secured': 'protegido', 'membership.notAddedLower': 'sin añadir', 'membership.details': 'Detalles de la membresía', 'membership.number': 'Número de membresía', 'membership.copyNumber': 'Copiar número', 'membership.tier': 'Nivel', 'membership.points': 'Puntos / millas', 'membership.notConnected': 'No conectado', 'membership.memberSince': 'Miembro desde',
+    'common.copied': 'Copiado', 'common.close': 'Cerrar', 'common.open': 'Abrir', 'common.viewAll': 'Ver todo', 'common.save': 'Guardar', 'common.saving': 'Guardando…', 'common.delete': 'Eliminar', 'common.download': 'Descargar', 'common.replace': 'Sustituir', 'common.view': 'Ver',
+    'documents.uploaded': 'Documento subido de forma segura', 'documents.uploadFailed': 'Error al subir el archivo', 'documents.deleteConfirm': '¿Eliminar {{name}}? Esta acción no se puede deshacer.', 'documents.deleted': 'Documento eliminado', 'documents.deleteFailed': 'No se pudo eliminar el documento', 'documents.readyUpload': 'Listo para una carga segura', 'documents.licencePending': 'Conversión del permiso de conducir pendiente', 'documents.uploading': 'Subiendo…', 'documents.upload': 'Subir', 'documents.privateStorage': 'Archivo privado', 'documents.identityHealth': 'Documentos de identidad y sanitarios', 'documents.personalRecords': 'Documentos personales',
+    'notes.connect': 'Conecta Supabase para guardar notas', 'notes.saved': 'Nota guardada', 'notes.saveFailed': 'No se pudo guardar la nota', 'notes.privateWriting': 'Escritura privada', 'notes.new': 'Nueva nota', 'notes.deleteLabel': 'Eliminar {{title}}', 'notes.deleteConfirm': '¿Eliminar “{{title}}”?', 'notes.deleted': 'Nota eliminada', 'notes.emptyTitle': 'Aún no hay notas', 'notes.emptyText': 'Crea una nota privada cuando tengas algo que quieras conservar.', 'notes.privateNote': 'Nota privada', 'notes.title': 'Título de la nota', 'notes.startWriting': 'Empieza a escribir…', 'notes.save': 'Guardar nota',
+    'records.connect': 'Conecta Supabase para añadir datos privados', 'records.accountAdded': 'Cuenta añadida', 'records.membershipAdded': 'Membresía añadida', 'records.saveFailed': 'No se pudo guardar este registro', 'records.privateRecord': 'Registro privado', 'records.addAccount': 'Añadir cuenta', 'records.addMembership': 'Añadir membresía', 'records.institution': 'Entidad', 'records.product': 'Producto', 'records.country': 'País', 'records.identifierType': 'Tipo de identificador', 'records.identifierHint': 'IBAN, correo, ID de cliente…', 'records.identifierValue': 'Valor del identificador', 'records.provider': 'Proveedor', 'records.programme': 'Programa', 'records.membershipNumber': 'Número de membresía', 'records.storageHint': 'Este registro se guarda en la base de datos privada y queda limitado a tu cuenta.',
+    'app.connectFailed': 'No se pudo conectar', 'app.primaryNavigation': 'Navegación principal', 'app.privateSpace': 'Tu espacio privado', 'app.securePreview': 'Vista previa segura', 'app.encryptedAccess': 'Acceso protegido', 'app.closeNavigation': 'Cerrar navegación', 'app.openNavigation': 'Abrir navegación', 'app.search': 'Buscar en tu hub…', 'app.previewMode': 'Modo de vista previa segura', 'app.preview': 'Vista previa', 'app.personal': 'Personal', 'app.offline': 'Estás sin conexión. Los datos privados no se guardan en caché.',
+    'overview.eyebrow': 'Resumen personal', 'overview.welcome': 'Bienvenido de nuevo, Gianluca.', 'overview.subtitle': 'Todo lo importante, siempre a tu alcance.', 'overview.accounts': 'Cuentas', 'overview.quickAccess': 'Acceso rápido', 'overview.uploadDocument': 'Subir documento', 'overview.openNotes': 'Abrir notas', 'overview.memberships': 'Membresías', 'overview.documents': 'Documentos', 'overview.italianAwaiting': 'Documentos italianos pendientes de subir', 'overview.brazilianAwaiting': 'Documentos brasileños pendientes de subir', 'overview.licenceConversion': 'Conversión del permiso',
+    'pages.financialServices': 'Servicios financieros', 'pages.loyalty': 'Programas de fidelización', 'pages.journeys': 'Viajes', 'pages.travelEmptyTitle': 'Aún no hay viajes', 'pages.travelEmptyText': 'Tus planes de viaje aparecerán aquí cuando quieras añadirlos.',
+    'settings.integrations': 'Integraciones', 'settings.gmailText': 'Solo se muestra el estado de conexión. El acceso al correo está desactivado.', 'settings.supabaseText': 'Autenticación, datos privados y almacenamiento de documentos.', 'settings.privacy': 'Privacidad', 'settings.privateByDesign': 'Privado desde el diseño', 'settings.privacyText': 'Los identificadores solo aparecen después de autenticarte. Las respuestas sensibles de las API nunca se almacenan en caché mediante el service worker.',
+    'settings.personalisation': 'Personalización', 'settings.appearance': 'Apariencia', 'settings.appearanceText': 'Elige el estilo visual que te resulte más cómodo.', 'settings.light': 'Claro', 'settings.dark': 'Oscuro', 'settings.language': 'Idioma', 'settings.languageText': 'Elige el idioma utilizado en todo Private Hub.', 'settings.english': 'English', 'settings.italian': 'Italiano', 'settings.spanish': 'Español',
+    'country.Italy': 'Italia', 'country.Brazil': 'Brasil',
+    'identifier.Email': 'Correo electrónico', 'identifier.IBAN': 'IBAN', 'identifier.Chave PIX': 'Chave PIX',
+    'document.Passport': 'Pasaporte', 'document.Carta d’identità': 'Carta d’identità', 'document.Carta d\'identità': 'Carta d’identità', 'document.Tessera Sanitaria': 'Tessera Sanitaria', 'document.Patente italiana': 'Patente italiana', 'document.RG': 'RG', 'document.CPF': 'CPF', 'document.CNH': 'CNH',
+  },
+}
+
+const localeByLanguage: Record<Language, string> = { en: 'en-GB', it: 'it-IT', es: 'es-ES' }
+const PreferencesContext = createContext<PreferencesValue | null>(null)
+
+function readLanguage(): Language {
+  const stored = localStorage.getItem('private-hub-language')
+  return stored === 'it' || stored === 'es' ? stored : 'en'
+}
+
+function readTheme(): Theme {
+  return localStorage.getItem('private-hub-theme') === 'dark' ? 'dark' : 'light'
+}
+
+export function PreferencesProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(readTheme)
+  const [language, setLanguage] = useState<Language>(readLanguage)
+
+  useEffect(() => {
+    localStorage.setItem('private-hub-theme', theme)
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#101722' : '#edf4fb')
+  }, [theme])
+
+  useEffect(() => {
+    localStorage.setItem('private-hub-language', language)
+    document.documentElement.lang = language
+  }, [language])
+
+  const value = useMemo<PreferencesValue>(() => {
+    const t = (key: string, vars: Record<string, string | number> = {}) => {
+      const template = dictionaries[language][key] ?? dictionaries.en[key] ?? key
+      return Object.entries(vars).reduce((text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)), template)
+    }
+    return {
+      theme,
+      setTheme,
+      language,
+      setLanguage,
+      t,
+      locale: localeByLanguage[language],
+      countryName: (country) => { if (!country) return ''; const key = `country.${country}`; const value = t(key); return value === key ? country : value },
+      documentName: (documentType) => { const key = `document.${documentType}`; const value = t(key); return value === key ? documentType : value },
+      identifierName: (identifierType) => { if (!identifierType) return ''; const key = `identifier.${identifierType}`; const value = t(key); return value === key ? identifierType : value },
+    }
+  }, [language, theme])
+
+  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
+}
+
+export function usePreferences() {
+  const value = useContext(PreferencesContext)
+  if (!value) throw new Error('usePreferences must be used inside PreferencesProvider')
+  return value
+}

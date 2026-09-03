@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#edf4fb" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('private-hub-theme')
+        const theme = savedTheme === 'dark' ? 'dark' : 'light'
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#101722' : '#edf4fb')
+        const savedLanguage = localStorage.getItem('private-hub-language')
+        if (savedLanguage === 'it' || savedLanguage === 'es') document.documentElement.lang = savedLanguage
+      } catch {}
+    </script>
     <meta name="description" content="Private Hub — a secure personal digital cabinet." />
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <link rel="icon" href="%BASE_URL%assets/favicon.svg" type="image/svg+xml" />
