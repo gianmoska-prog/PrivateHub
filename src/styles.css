@@ -171,6 +171,12 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .integration-grid .status { margin: 0 0 0 auto; }
 .privacy-card { max-width: 720px; min-height: 100px; color: var(--blue); }
 .privacy-card p { color: var(--muted); }
+.password-card { display: grid; grid-template-columns: minmax(220px,1fr) minmax(280px,1.15fr); gap: 24px; align-items: start; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.password-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.password-form label { display: grid; gap: 7px; font-size: .78rem; font-weight: 650; }
+.password-form input { min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--surface); }
+.password-form .primary-button,.password-message { grid-column: 1/-1; }
+.password-message { margin: 0; color: var(--green); font-size: .8rem; }
 
 .sheet-layer { position: fixed; z-index: 60; inset: 0; display: flex; align-items: stretch; justify-content: flex-end; background: rgba(24,40,60,.24); backdrop-filter: blur(3px); animation: fade .22s ease; }
 .detail-sheet { width: min(480px,100%); height: 100%; padding: 34px 30px calc(30px + env(safe-area-inset-bottom)); overflow: auto; border-left: 1px solid var(--line); background: #fff; box-shadow: -20px 0 60px rgba(31,53,77,.16); animation: slide .32s var(--ease); }
@@ -250,6 +256,7 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .auth-form .remember-row input { width: 18px; height: 18px; margin: 1px 0 0; padding: 0; flex: 0 0 auto; accent-color: var(--green); }
 .auth-form .remember-row small { display: block; margin-top: 2px; color: var(--muted); font-size: .75rem; font-weight: 450; }
 .auth-form .primary-button { margin-top: 4px; }
+.auth-method-button { justify-self: center; border: 0; padding: 5px; color: var(--green); background: transparent; font-weight: 650; cursor: pointer; }
 .form-error { margin: 0; color: var(--danger); font-size: .75rem; }
 .privacy-note { margin-top: 24px; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .7rem; line-height: 1.4; }
 .success-message { min-height: 75px; padding: 15px; display: flex; align-items: center; gap: 12px; border: 1px solid #d6ecdf; border-radius: 13px; color: var(--green); background: var(--green-soft); }
@@ -328,6 +335,7 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
   .page-header h1 { font-size: 1.7rem; }
   .page-header .compact { width: 44px; padding: 0; font-size: 0; }
   .document-grid,.notes-grid,.integration-grid { grid-template-columns: 1fr; }
+  .password-card,.password-form { grid-template-columns: 1fr; }
   .document-card { min-height: 210px; }
   .integration-grid article { align-items: flex-start; }
   .integration-grid .status { position: absolute; margin: 62px 0 0 63px; }

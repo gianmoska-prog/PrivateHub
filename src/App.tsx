@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
   Banknote, CalendarDays, Check, ChevronRight, CircleUserRound, Copy, Download, FileText,
-  FolderClosed, Home, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
+  FolderClosed, Home, LockKeyhole, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Star, Sun, Trash2, Upload, WifiOff, X,
 } from 'lucide-react'
 import { createAccount, createMembership, deleteNote, downloadDocument, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocument, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, uploadDocument } from './supabase'
@@ -62,6 +62,8 @@ function Brand() {
 function AuthGate() {
   const { t } = usePreferences()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [method, setMethod] = useState<'link' | 'password'>('link')
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -71,10 +73,12 @@ function AuthGate() {
     setBusy(true); setError('')
     setKeepSignedInPreference(keepLoggedIn)
     const redirectUrl = new URL(import.meta.env.BASE_URL, window.location.origin).href
-    const { error: authError } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } })
+    const { error: authError } = method === 'password'
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } })
     setBusy(false)
-    if (authError) setError(t('auth.unableSend'))
-    else setSent(true)
+    if (authError) setError(method === 'password' ? t('auth.invalidCredentials') : (authError.status === 429 ? t('auth.rateLimited') : t('auth.unableSend')))
+    else if (method === 'link') setSent(true)
   }
   const [titleLine1, titleLine2] = t('auth.title').split('\n')
   return <main className="auth-shell">
@@ -89,12 +93,14 @@ function AuthGate() {
           <form onSubmit={submit} className="auth-form">
             <label htmlFor="email">{t('auth.email')}</label>
             <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('auth.placeholder')} />
+            {method === 'password' && <><label htmlFor="password">{t('auth.password')}</label><input id="password" type="password" autoComplete="current-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} /></>}
             <label className="remember-row" htmlFor="keep-logged-in">
               <input id="keep-logged-in" type="checkbox" checked={keepLoggedIn} onChange={(event) => { setKeepLoggedIn(event.target.checked); setKeepSignedInPreference(event.target.checked) }} />
               <span>{t('auth.keepLoggedIn')} <small>{t('auth.untilLogout')}</small></span>
             </label>
             {error && <p className="form-error" role="alert">{error}</p>}
-            <button className="primary-button" disabled={busy}>{busy ? t('auth.sending') : t('auth.sendLink')}</button>
+            <button className="primary-button" disabled={busy}>{busy ? t(method === 'password' ? 'auth.signingIn' : 'auth.sending') : t(method === 'password' ? 'auth.signIn' : 'auth.sendLink')}</button>
+            <button type="button" className="auth-method-button" onClick={() => { setMethod(method === 'link' ? 'password' : 'link'); setError('') }}>{t(method === 'link' ? 'auth.usePassword' : 'auth.useLink')}</button>
           </form>}
         <span className="privacy-note"><ShieldCheck size={15}/> {t('auth.protected')}</span>
       </div>
@@ -269,6 +275,36 @@ function CreateRecordSheet({ kind, preview, onClose, refresh, toast }: { kind: '
   </form></div>
 }
 
+function PasswordSettings({ preview }: { preview: boolean }) {
+  const { t } = usePreferences()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (preview || !supabase) return
+    if (password !== confirm) { setMessage(t('settings.passwordMismatch')); return }
+    setBusy(true); setMessage('')
+    const { error } = await supabase.auth.updateUser({ password })
+    setBusy(false)
+    if (error) setMessage(t('settings.passwordFailed'))
+    else { setPassword(''); setConfirm(''); setMessage(t('settings.passwordSaved')) }
+  }
+  return <section className="settings-section">
+    <h2>{t('settings.security')}</h2>
+    <article className="password-card">
+      <div className="preference-copy"><span className="preference-icon"><LockKeyhole size={20}/></span><div><h3>{t('settings.password')}</h3><p>{t('settings.passwordText')}</p></div></div>
+      <form className="password-form" onSubmit={submit}>
+        <label>{t('settings.newPassword')}<input type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)}/></label>
+        <label>{t('settings.confirmPassword')}<input type="password" autoComplete="new-password" minLength={8} required value={confirm} onChange={(event) => setConfirm(event.target.value)}/></label>
+        {message && <p className="password-message" role="status">{message}</p>}
+        <button className="primary-button compact" disabled={busy || preview}>{busy ? t('common.saving') : t('settings.setPassword')}</button>
+      </form>
+    </article>
+  </section>
+}
+
 function SettingsView({ preview, integrationStatus, bankConnections }: { preview: boolean; integrationStatus: (provider: string) => string; bankConnections: BankConnection[] }) {
   const { t, theme, setTheme, language, setLanguage } = usePreferences()
   return <>
@@ -289,6 +325,7 @@ function SettingsView({ preview, integrationStatus, bankConnections }: { preview
         </article>
       </div>
     </section>
+    <PasswordSettings preview={preview}/>
     <section className="settings-section"><h2>{t('settings.integrations')}</h2><div className="integration-grid"><article><span className="integration-icon gmail">M</span><div><h3>Gmail</h3><p>{t('settings.gmailText')}</p></div><Status value={integrationStatus('Gmail')}/></article><article><span className="integration-icon supabase">S</span><div><h3>Supabase</h3><p>{t('settings.supabaseText')}</p></div><Status value={preview ? 'not_connected' : integrationStatus('Supabase')}/></article><article className="banking-integration"><span className="integration-icon banking">EB</span><div><h3>Enable Banking</h3><p>{t('settings.bankingText')}</p><div className="bank-provider-status"><span>Intesa <Status value={bankConnections.find(item => item.institution === 'Intesa Sanpaolo')?.status || 'not_connected'}/></span><span>Revolut <Status value={bankConnections.find(item => item.institution === 'Revolut')?.status || 'not_connected'}/></span><span>PayPal <Status value="not_connected"/></span></div></div><Status value={bankConnections.some(item => item.status === 'connected') ? 'connected' : integrationStatus('Enable Banking')}/></article></div></section>
     <section className="settings-section"><h2>{t('settings.privacy')}</h2><div className="privacy-card"><ShieldCheck size={24}/><div><h3>{t('settings.privateByDesign')}</h3><p>{t('settings.privacyText')}</p></div></div></section>
   </>
