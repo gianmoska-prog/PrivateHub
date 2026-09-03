@@ -45,7 +45,7 @@ const publicPreview: HubData = {
 
 const accountArt: Record<string, string> = {
   'Intesa Sanpaolo': assetUrl('assets/intesa-card.png'), Revolut: assetUrl('assets/revolut-card.webp'), PayPal: assetUrl('assets/paypal.webp'), Nubank: assetUrl('assets/nubank-card-gianluca.webp'),
-  'American Express': assetUrl('assets/american-express.png'),
+  'American Express': assetUrl('assets/amex-gold-g-moscatelli.png'),
 }
 const accountLogo: Record<string, string> = {
   'Intesa Sanpaolo': assetUrl('assets/logo-intesa.jpg'),
