@@ -6,7 +6,7 @@ import {
   FolderClosed, Home, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Star, Sun, Trash2, Upload, WifiOff, X,
 } from 'lucide-react'
-import { createAccount, createMembership, deleteNote, downloadDocument, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocument, saveNote, selectBankAccount, startBankConnection, supabase, uploadDocument } from './supabase'
+import { createAccount, createMembership, deleteNote, downloadDocument, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocument, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, uploadDocument } from './supabase'
 import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentRecord, HubData, Membership, NoteRecord } from './types'
 import { usePreferences } from './preferences'
 
@@ -65,9 +65,11 @@ function AuthGate() {
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [keepLoggedIn, setKeepLoggedIn] = useState(getKeepSignedInPreference)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (!supabase) return
     setBusy(true); setError('')
+    setKeepSignedInPreference(keepLoggedIn)
     const redirectUrl = new URL(import.meta.env.BASE_URL, window.location.origin).href
     const { error: authError } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } })
     setBusy(false)
@@ -87,6 +89,10 @@ function AuthGate() {
           <form onSubmit={submit} className="auth-form">
             <label htmlFor="email">{t('auth.email')}</label>
             <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('auth.placeholder')} />
+            <label className="remember-row" htmlFor="keep-logged-in">
+              <input id="keep-logged-in" type="checkbox" checked={keepLoggedIn} onChange={(event) => { setKeepLoggedIn(event.target.checked); setKeepSignedInPreference(event.target.checked) }} />
+              <span>{t('auth.keepLoggedIn')} <small>{t('auth.untilLogout')}</small></span>
+            </label>
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="primary-button" disabled={busy}>{busy ? t('auth.sending') : t('auth.sendLink')}</button>
           </form>}

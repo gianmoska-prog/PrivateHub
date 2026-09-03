@@ -3,10 +3,36 @@ import type { HubData, NoteRecord } from './types'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
+const keepSignedInKey = 'private-hub-keep-signed-in'
+
+export function getKeepSignedInPreference() {
+  return window.localStorage.getItem(keepSignedInKey) !== 'false'
+}
+
+export function setKeepSignedInPreference(value: boolean) {
+  window.localStorage.setItem(keepSignedInKey, String(value))
+}
+
+const authStorage = {
+  getItem(storageKey: string) {
+    return (getKeepSignedInPreference() ? window.localStorage : window.sessionStorage).getItem(storageKey)
+  },
+  setItem(storageKey: string, value: string) {
+    const persistent = getKeepSignedInPreference()
+    const selected = persistent ? window.localStorage : window.sessionStorage
+    const other = persistent ? window.sessionStorage : window.localStorage
+    selected.setItem(storageKey, value)
+    other.removeItem(storageKey)
+  },
+  removeItem(storageKey: string) {
+    window.localStorage.removeItem(storageKey)
+    window.sessionStorage.removeItem(storageKey)
+  },
+}
 
 export const isSupabaseConfigured = Boolean(url && key)
 export const supabase = isSupabaseConfigured ? createClient(url!, key!, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: authStorage },
 }) : null
 
 const blank: HubData = { accounts: [], memberships: [], documents: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [] }

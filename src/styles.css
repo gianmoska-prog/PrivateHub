@@ -246,6 +246,9 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .auth-form { display: grid; gap: 11px; }
 .auth-form label { font-size: .75rem; font-weight: 650; }
 .auth-form input { height: 50px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); }
+.auth-form .remember-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: .82rem; line-height: 1.35; }
+.auth-form .remember-row input { width: 18px; height: 18px; margin: 1px 0 0; padding: 0; flex: 0 0 auto; accent-color: var(--green); }
+.auth-form .remember-row small { display: block; margin-top: 2px; color: var(--muted); font-size: .75rem; font-weight: 450; }
 .auth-form .primary-button { margin-top: 4px; }
 .form-error { margin: 0; color: var(--danger); font-size: .75rem; }
 .privacy-note { margin-top: 24px; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .7rem; line-height: 1.4; }

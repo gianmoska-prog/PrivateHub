@@ -1,4 +1,4 @@
-const CACHE = 'private-hub-shell-v4'
+const CACHE = 'private-hub-shell-v5'
 const APP_ROOT = new URL('./', self.location.href).pathname
 const atRoot = (path = '') => `${APP_ROOT}${path}`
 const SHELL = [atRoot(), atRoot('manifest.webmanifest'), atRoot('assets/app-icon-192.png'), atRoot('assets/app-icon-512.png'), atRoot('assets/favicon.svg'), atRoot('assets/lake-scene.svg')]
