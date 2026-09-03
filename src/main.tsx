@@ -8,5 +8,8 @@ createRoot(document.getElementById('root')!).render(
 )
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js').catch(() => undefined))
+  window.addEventListener('load', () => {
+    const base = import.meta.env.BASE_URL
+    navigator.serviceWorker.register(`${base}service-worker.js`, { scope: base }).catch(() => undefined)
+  })
 }

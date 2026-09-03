@@ -11,6 +11,7 @@ import type { Account, DocumentRecord, HubData, Membership, NoteRecord } from '.
 
 type Page = 'overview' | 'accounts' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
 type Selected = { kind: 'account'; item: Account } | { kind: 'membership'; item: Membership } | null
+const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`
 
 const NAV: { id: Page; label: string; icon: typeof Home }[] = [
   { id: 'overview', label: 'Overview', icon: Home },
@@ -43,9 +44,9 @@ const publicPreview: HubData = {
 }
 
 const accountArt: Record<string, string> = {
-  'Intesa Sanpaolo': '/assets/intesa-card.png', Revolut: '/assets/revolut-card.webp', PayPal: '/assets/paypal.webp', Nubank: '/assets/nubank-card-gianluca.webp',
+  'Intesa Sanpaolo': assetUrl('assets/intesa-card.png'), Revolut: assetUrl('assets/revolut-card.webp'), PayPal: assetUrl('assets/paypal.webp'), Nubank: assetUrl('assets/nubank-card-gianluca.webp'),
 }
-const membershipArt: Record<string, string> = { 'Marriott Bonvoy': '/assets/marriott.png', 'Hilton Honors': '/assets/hilton.png' }
+const membershipArt: Record<string, string> = { 'Marriott Bonvoy': assetUrl('assets/marriott.png'), 'Hilton Honors': assetUrl('assets/hilton.png') }
 
 function Brand() {
   return <div className="brand"><svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" strokeWidth="1.7"><ellipse cx="17" cy="17" rx="8" ry="12" transform="rotate(-45 17 17)"/><ellipse cx="31" cy="17" rx="8" ry="12" transform="rotate(45 31 17)"/><ellipse cx="17" cy="31" rx="8" ry="12" transform="rotate(45 17 31)"/><ellipse cx="31" cy="31" rx="8" ry="12" transform="rotate(-45 31 31)"/></g></svg><span>Private <em>Hub</em></span></div>
@@ -59,7 +60,8 @@ function AuthGate() {
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (!supabase) return
     setBusy(true); setError('')
-    const { error: authError } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+    const redirectUrl = new URL(import.meta.env.BASE_URL, window.location.origin).href
+    const { error: authError } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } })
     setBusy(false)
     if (authError) setError('Unable to send the sign-in link. Try again.')
     else setSent(true)
@@ -67,7 +69,7 @@ function AuthGate() {
   return <main className="auth-shell">
     <section className="auth-card">
       <Brand />
-      <div className="auth-scene"><img src="/assets/lake-scene.svg" alt="" /></div>
+      <div className="auth-scene"><img src={assetUrl('assets/lake-scene.svg')} alt="" /></div>
       <div className="auth-copy">
         <span className="eyebrow">Private access</span>
         <h1>Your personal world,<br/>quietly organised.</h1>
@@ -274,7 +276,7 @@ function App() {
     <aside className="sidebar">
       <Brand/>
       <nav aria-label="Primary navigation">{NAV.map(({id,label,icon:Icon}) => <button key={id} className={page === id ? 'active' : ''} onClick={() => showPage(id)}><Icon size={21}/><span>{label}</span></button>)}</nav>
-      <div className="sidebar-scene"><img src="/assets/lake-scene.svg" alt=""/></div>
+      <div className="sidebar-scene"><img src={assetUrl('assets/lake-scene.svg')} alt=""/></div>
       <div className="sidebar-foot"><span className="weather-dot"/><span><strong>Your private space</strong><small>{preview ? 'Secure preview' : 'Encrypted access'}</small></span></div>
     </aside>
     <button className="nav-scrim" onClick={() => setDrawer(false)} aria-label="Close navigation"/>
@@ -289,7 +291,7 @@ function App() {
       {!online && <div className="offline"><WifiOff size={16}/> You’re offline. Private data is not cached.</div>}
       <div className="page-content">
         {page === 'overview' && <>
-          <section className="hero"><div><span className="eyebrow">Personal overview</span><h1>Welcome back, Gianluca.</h1><p>Everything important, calmly in reach.</p><i/></div><img src="/assets/lake-scene.svg" alt=""/></section>
+          <section className="hero"><div><span className="eyebrow">Personal overview</span><h1>Welcome back, Gianluca.</h1><p>Everything important, calmly in reach.</p><i/></div><img src={assetUrl('assets/lake-scene.svg')} alt=""/></section>
           <div className="dashboard-grid">
             <section className="panel accounts-panel"><div className="panel-heading"><h2>Accounts</h2><button onClick={() => showPage('accounts')}>View all <ChevronRight size={15}/></button></div><div className="account-grid">{filtered.accounts.slice(0,5).map((item) => <AccountCard key={item.id} account={item} onOpen={() => setSelected({kind:'account',item})}/>)}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>Quick access</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>Add account</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>Add membership</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>Upload document</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>Open notes</button></div></section>

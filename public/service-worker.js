@@ -1,5 +1,7 @@
-const CACHE = 'private-hub-shell-v2'
-const SHELL = ['/', '/manifest.webmanifest', '/assets/app-icon-192.png', '/assets/app-icon-512.png', '/assets/favicon.svg', '/assets/lake-scene.svg']
+const CACHE = 'private-hub-shell-v3'
+const APP_ROOT = new URL('./', self.location.href).pathname
+const atRoot = (path = '') => `${APP_ROOT}${path}`
+const SHELL = [atRoot(), atRoot('manifest.webmanifest'), atRoot('assets/app-icon-192.png'), atRoot('assets/app-icon-512.png'), atRoot('assets/favicon.svg'), atRoot('assets/lake-scene.svg')]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)))
@@ -17,7 +19,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url)
   if (url.hostname.includes('supabase.co') || url.pathname.includes('/rest/') || url.pathname.includes('/auth/') || url.pathname.includes('/storage/')) return
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/')))
+    event.respondWith(fetch(request).catch(() => caches.match(APP_ROOT)))
     return
   }
   if (url.origin === self.location.origin) {

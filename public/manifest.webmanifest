@@ -2,15 +2,15 @@
   "name": "Private Hub",
   "short_name": "Private Hub",
   "description": "Your secure personal digital cabinet.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/PrivateHub/",
+  "scope": "/PrivateHub/",
   "display": "standalone",
   "background_color": "#edf4fb",
   "theme_color": "#edf4fb",
   "orientation": "any",
   "icons": [
-    { "src": "/assets/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/PrivateHub/assets/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/PrivateHub/assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/PrivateHub/assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
