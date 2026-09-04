@@ -151,7 +151,7 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
 function SavingsProgressPanel({ account, history, transactions }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[] }) {
   const { t, locale } = usePreferences()
   const currency = account?.manual_currency || 'EUR'
-  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
+  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
   const accountHistory = history
     .filter((item) => item.account_id === account?.id)
     .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
@@ -183,10 +183,14 @@ function SavingsProgressPanel({ account, history, transactions }: { account?: Ac
     const value = item.booking_date || item.transaction_date
     return value && new Date(`${value}T12:00:00Z`) >= cutoff
   }) : []
-  const outgoings = recent.filter((item) => Number(item.amount) < 0)
-  const incoming = recent.filter((item) => Number(item.amount) > 0)
+  const isSavingsTransfer = (item: BankTransaction) => `${item.counterparty || ''} ${item.description}`.toLowerCase().includes('salvadanaio')
+  const savingsTransfers = recent.filter((item) => Number(item.amount) < 0 && isSavingsTransfer(item))
+  const spendingMovements = recent.filter((item) => !isSavingsTransfer(item))
+  const outgoings = spendingMovements.filter((item) => Number(item.amount) < 0)
+  const incoming = spendingMovements.filter((item) => Number(item.amount) > 0)
   const spent = outgoings.reduce((sum, item) => sum + Math.abs(Number(item.amount)), 0)
   const received = incoming.reduce((sum, item) => sum + Number(item.amount), 0)
+  const transferredToSavings = savingsTransfers.reduce((sum, item) => sum + Math.abs(Number(item.amount)), 0)
   const largest = outgoings.reduce<BankTransaction | null>((winner, item) => !winner || Number(item.amount) < Number(winner.amount) ? item : winner, null)
   const repeated = Array.from(outgoings.reduce((counts, item) => {
     const label = (item.counterparty || item.description).trim().replace(/\s+/g, ' ')
@@ -196,7 +200,7 @@ function SavingsProgressPanel({ account, history, transactions }: { account?: Ac
   const progressMin = Math.min(100, Math.max(0, ((current || 0) / 8000) * 100))
   const progressMax = Math.min(100, Math.max(0, ((current || 0) / 12000) * 100))
   const review = recent.length
-    ? `${t('savings.reviewMovements', { count: recent.length, spent: money(spent), received: money(received) })} ${largest ? t('savings.reviewLargest', { amount: money(Math.abs(Number(largest.amount))), name: largest.counterparty || largest.description }) : ''} ${repeated ? t('savings.reviewRecurring', { name: repeated[0], count: repeated[1] }) : t('savings.reviewNoRecurring')}`
+    ? `${t('savings.reviewMovements', { count: spendingMovements.length, spent: money(spent), received: money(received) })} ${savingsTransfers.length ? t('savings.reviewTransfers', { count: savingsTransfers.length, amount: money(transferredToSavings) }) : ''} ${largest ? t('savings.reviewLargest', { amount: money(Math.abs(Number(largest.amount))), name: largest.counterparty || largest.description }) : ''} ${repeated ? t('savings.reviewRecurring', { name: repeated[0], count: repeated[1] }) : t('savings.reviewNoRecurring')}`
     : t('savings.reviewEmpty')
   const momentum = current == null
     ? t('savings.momentumStart')
