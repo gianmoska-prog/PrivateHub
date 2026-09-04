@@ -146,6 +146,31 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .document-actions { margin-top: 19px; display: flex; flex-wrap: wrap; gap: 7px; }
 .document-actions button { min-height: 38px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); cursor: pointer; font-size: .7rem; }
 .document-actions .danger { color: var(--danger); }
+.document-file-list { margin-top: 13px; display: grid; gap: 7px; }
+.document-file-list > div { min-width: 0; min-height: 38px; display: grid; grid-template-columns: minmax(0,1fr) 36px 36px; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.document-file-list button { height: 36px; display: grid; place-items: center; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
+.document-file-list .document-file-name { min-width: 0; padding: 0 9px; grid-template-columns: auto minmax(0,1fr); gap: 7px; color: var(--ink-soft); text-align: left; }
+.document-file-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .68rem; }
+.document-file-list button:hover { color: var(--blue); background: var(--blue-soft); }
+.document-file-list button.danger:hover { color: var(--danger); background: #fff1f2; }
+.document-preview-layer { z-index: 80; align-items: center; justify-content: center; padding: 28px; }
+.document-preview { width: min(980px,100%); max-height: min(880px,calc(100vh - 56px)); position: relative; display: grid; grid-template-rows: auto minmax(260px,1fr) auto; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 30px 90px rgba(17,35,55,.28); }
+.document-preview > header { padding: 18px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
+.document-preview > header h2 { margin: 4px 0 0; font-size: 1rem; }
+.document-preview > header p { min-height: 0; margin: 4px 0 0; color: var(--muted); font-size: .7rem; }
+.preview-stage { min-height: 420px; display: grid; place-items: center; overflow: auto; background: #e8edf3; }
+.preview-stage img { display: block; max-width: 100%; max-height: min(680px,calc(100vh - 235px)); object-fit: contain; }
+.preview-stage iframe { width: 100%; height: min(680px,calc(100vh - 235px)); border: 0; background: #fff; }
+.preview-loading { color: #5d6d80; font-size: .8rem; }
+.preview-fallback { padding: 42px; display: grid; place-items: center; gap: 14px; color: var(--muted); text-align: center; }
+.preview-fallback p { min-height: 0; margin: 0; }
+.preview-arrow { width: 44px; height: 54px; position: absolute; top: 50%; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.65); border-radius: 13px; color: #fff; background: rgba(20,35,52,.62); box-shadow: 0 8px 25px rgba(14,28,42,.2); cursor: pointer; backdrop-filter: blur(8px); }
+.preview-arrow.previous { left: 14px; }
+.preview-arrow.next { right: 14px; }
+.preview-file-picker { padding: 11px 14px; display: flex; gap: 8px; overflow-x: auto; border-top: 1px solid var(--line); }
+.preview-file-picker button { min-width: 42px; height: 38px; padding: 0 11px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); background: var(--surface-soft); cursor: pointer; }
+.preview-file-picker button span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .67rem; }
+.preview-file-picker button.active { color: var(--blue); border-color: #8db5ee; background: var(--blue-soft); }
 .notes-grid { padding-top: 24px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; }
 .note-card { min-height: 190px; position: relative; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
 .note-card > button:first-child { width: 100%; height: 100%; min-height: 190px; padding: 20px; border: 0; background: transparent; text-align: left; cursor: pointer; }
@@ -204,6 +229,11 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .manual-balance-form input { width: 100%; height: 100%; padding: 0 12px; border: 0; outline: 0; color: var(--ink); background: transparent; font: 600 1rem var(--sans); }
 .manual-balance-form label b { padding: 0 13px; color: var(--muted); font-size: .76rem; }
 .manual-balance-form .primary-button { width: 100%; }
+.linked-balance-block { width: 100%; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.linked-balance-block div { display: grid; gap: 4px; }
+.linked-balance-block span { color: var(--ink-soft); font-size: .78rem; font-weight: 700; }
+.linked-balance-block small { color: var(--muted); font-size: .67rem; }
+.linked-balance-block strong { white-space: nowrap; font: 600 1.15rem var(--serif); }
 .candidate-list { width: 100%; }
 .candidate-list h3 { margin: 0 0 5px; font: italic 600 1rem var(--serif); }
 .candidate-list > p { margin: 0 0 12px; color: var(--muted); font-size: .74rem; line-height: 1.5; }
@@ -477,6 +507,11 @@ html, body, .hub-shell, .sidebar, .panel, .account-card, .quick-grid button, .me
 :root[data-theme="dark"] .integration-icon.banking { color: #94bcfb; background: #1b3150; }
 :root[data-theme="dark"] .detail-tabs button.active { color: #a7caff; background: #24364b; }
 :root[data-theme="dark"] .balance-block { background: #182433; }
+:root[data-theme="dark"] .linked-balance-block,
+:root[data-theme="dark"] .document-file-list > div { background: #182433; }
+:root[data-theme="dark"] .document-file-list button.danger:hover { background: #351f25; }
+:root[data-theme="dark"] .document-preview { background: #111a26; }
+:root[data-theme="dark"] .preview-stage { background: #0b121b; }
 :root[data-theme="dark"] .theme-toggle { background: #101924; }
 :root[data-theme="dark"] .theme-toggle button.selected { color: #a7caff; background: #24364b; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
 :root[data-theme="dark"] .language-select { background: #182433; }

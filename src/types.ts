@@ -76,6 +76,16 @@ export interface BankConnection {
   updated_at: string
 }
 
+export interface DocumentFile {
+  id: string
+  document_id: string
+  storage_path: string
+  filename: string
+  mime_type: string | null
+  uploaded_at: string
+  created_at: string
+}
+
 export interface BankAccountCandidate {
   id: string
   canonical_account_id: string
@@ -104,6 +114,7 @@ export interface HubData {
   accounts: Account[]
   memberships: Membership[]
   documents: DocumentRecord[]
+  documentFiles: DocumentFile[]
   notes: NoteRecord[]
   integrations: IntegrationRecord[]
   bankConnections: BankConnection[]

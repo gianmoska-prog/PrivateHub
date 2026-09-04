@@ -35,18 +35,18 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: authStorage },
 }) : null
 
-const blank: HubData = { accounts: [], memberships: [], documents: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [] }
+const blank: HubData = { accounts: [], memberships: [], documents: [], documentFiles: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [] }
 
 export async function loadHubData(): Promise<HubData> {
   if (!supabase) return blank
-  const tables = ['accounts', 'memberships', 'documents', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions'] as const
+  const tables = ['accounts', 'memberships', 'documents', 'document_files', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions'] as const
   const results = await Promise.all(tables.map((table) => supabase.from(table).select('*').order('created_at', { ascending: true })))
   const failure = results.find((result) => result.error)
   if (failure?.error) throw failure.error
   return {
-    accounts: results[0].data ?? [], memberships: results[1].data ?? [], documents: results[2].data ?? [],
-    notes: results[3].data ?? [], integrations: results[4].data ?? [],
-    bankConnections: results[5].data ?? [], bankAccountCandidates: results[6].data ?? [], bankTransactions: results[7].data ?? [],
+    accounts: results[0].data ?? [], memberships: results[1].data ?? [], documents: results[2].data ?? [], documentFiles: results[3].data ?? [],
+    notes: results[4].data ?? [], integrations: results[5].data ?? [],
+    bankConnections: results[6].data ?? [], bankAccountCandidates: results[7].data ?? [], bankTransactions: results[8].data ?? [],
   } as HubData
 }
 
@@ -108,40 +108,61 @@ export async function deleteNote(id: string) {
   if (error) throw error
 }
 
-export async function uploadDocument(recordId: string, country: string, type: string, file: File, existingPath?: string | null) {
+export async function uploadDocuments(recordId: string, country: string, type: string, files: File[]) {
   if (!supabase) throw new Error('Supabase is not configured')
+  if (!files.length) return
   const { data: userData } = await supabase.auth.getUser()
   const user = userData.user
   if (!user) throw new Error('Unauthorised')
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
-  const path = `${user.id}/${country.toLowerCase()}/${type.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/${Date.now()}-${safeName}`
-  const { error: uploadError } = await supabase.storage.from('private-hub-documents').upload(path, file, { upsert: false })
-  if (uploadError) throw uploadError
-  const { error: updateError } = await supabase.from('documents').update({ status: 'uploaded', storage_path: path, filename: file.name, mime_type: file.type, uploaded_at: new Date().toISOString() }).eq('id', recordId)
-  if (updateError) {
-    await supabase.storage.from('private-hub-documents').remove([path])
-    throw updateError
+  const folder = `${user.id}/${country.toLowerCase()}/${type.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+  const uploaded: { storage_path: string; filename: string; mime_type: string; owner_id: string; document_id: string }[] = []
+  try {
+    for (const [index, file] of files.entries()) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+      const path = `${folder}/${Date.now()}-${index}-${crypto.randomUUID()}-${safeName}`
+      const { error } = await supabase.storage.from('private-hub-documents').upload(path, file, { upsert: false })
+      if (error) throw error
+      uploaded.push({ storage_path: path, filename: file.name, mime_type: file.type, owner_id: user.id, document_id: recordId })
+    }
+    const { error: insertError } = await supabase.from('document_files').insert(uploaded)
+    if (insertError) throw insertError
+    const { error: updateError } = await supabase.from('documents').update({ status: 'uploaded', uploaded_at: new Date().toISOString() }).eq('id', recordId)
+    if (updateError) {
+      await supabase.from('document_files').delete().in('storage_path', uploaded.map(file => file.storage_path))
+      throw updateError
+    }
+  } catch (error) {
+    if (uploaded.length) await supabase.storage.from('private-hub-documents').remove(uploaded.map(file => file.storage_path))
+    throw error
   }
-  if (existingPath) await supabase.storage.from('private-hub-documents').remove([existingPath])
 }
 
-export async function downloadDocument(path: string, filename: string, open = false) {
+export async function getDocumentPreviewUrl(path: string) {
   if (!supabase) throw new Error('Supabase is not configured')
-  const { data, error } = await supabase.storage.from('private-hub-documents').download(path)
+  const { data, error } = await supabase.storage.from('private-hub-documents').createSignedUrl(path, 300)
   if (error) throw error
-  const href = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = href
-  anchor.download = open ? '' : filename
-  if (open) anchor.target = '_blank'
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(href), 30000)
+  return data.signedUrl
 }
 
-export async function removeDocument(recordId: string, path: string) {
+export async function downloadDocument(path: string, filename: string) {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { data, error } = await supabase.storage.from('private-hub-documents').createSignedUrl(path, 300, { download: filename })
+  if (error) throw error
+  const anchor = document.createElement('a')
+  anchor.href = data.signedUrl
+  anchor.download = filename
+  anchor.click()
+}
+
+export async function removeDocumentFile(recordId: string, fileId: string, path: string) {
   if (!supabase) throw new Error('Supabase is not configured')
   const { error } = await supabase.storage.from('private-hub-documents').remove([path])
   if (error) throw error
-  const { error: updateError } = await supabase.from('documents').update({ status: 'not_uploaded', storage_path: null, filename: null, mime_type: null, uploaded_at: null }).eq('id', recordId)
+  const { error: deleteError } = await supabase.from('document_files').delete().eq('id', fileId).eq('document_id', recordId)
+  if (deleteError) throw deleteError
+  const { count, error: countError } = await supabase.from('document_files').select('id', { count: 'exact', head: true }).eq('document_id', recordId)
+  if (countError) throw countError
+  const payload = count ? { status: 'uploaded' } : { status: 'not_uploaded', storage_path: null, filename: null, mime_type: null, uploaded_at: null }
+  const { error: updateError } = await supabase.from('documents').update(payload).eq('id', recordId)
   if (updateError) throw updateError
 }

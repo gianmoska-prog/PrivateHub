@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  Banknote, CalendarDays, Check, ChevronRight, CircleUserRound, Copy, Download, FileText,
+  Banknote, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, FileText,
   FolderClosed, Home, LockKeyhole, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Star, Sun, Trash2, Upload, WifiOff, X,
 } from 'lucide-react'
-import { createAccount, createMembership, deleteNote, downloadDocument, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocument, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, updateManualAccountBalance, uploadDocument } from './supabase'
-import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentRecord, HubData, Membership, NoteRecord } from './types'
+import { createAccount, createMembership, deleteNote, downloadDocument, getDocumentPreviewUrl, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocumentFile, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, updateManualAccountBalance, uploadDocuments } from './supabase'
+import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord } from './types'
 import { usePreferences } from './preferences'
 
 type Page = 'overview' | 'accounts' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
@@ -38,6 +38,7 @@ const publicPreview: HubData = {
     ['Passport', 'Italy', 'not_uploaded'], ['Carta d’identità', 'Italy', 'not_uploaded'], ['Tessera Sanitaria', 'Italy', 'not_uploaded'], ['Patente italiana', 'Italy', 'pending'],
     ['RG', 'Brazil', 'not_uploaded'], ['CPF', 'Brazil', 'not_uploaded'], ['CNH', 'Brazil', 'not_uploaded'],
   ].map(([document_type, country, status], index) => ({ id: String(index), document_type, country, status, storage_path: null, filename: null, mime_type: null, uploaded_at: null, updated_at: '' })),
+  documentFiles: [],
   notes: [],
   integrations: [
     { id: 'gmail', provider: 'Gmail', connection_status: 'not_connected', connected_at: null, updated_at: '' },
@@ -121,8 +122,8 @@ function Status({ value }: { value: string }) {
 function AccountCard({ account, connection, onOpen }: { account: Account; connection?: BankConnection; onOpen: () => void }) {
   const { t, identifierName, locale } = usePreferences()
   const art = accountArt[account.institution]
-  const balance = connection?.current_balance ?? (account.balance_mode === 'manual' ? account.manual_balance : null)
-  const currency = connection?.currency || account.manual_currency || 'EUR'
+  const balance = account.balance_mode === 'manual' ? account.manual_balance : connection?.current_balance
+  const currency = account.balance_mode === 'manual' ? account.manual_currency || 'EUR' : connection?.currency || 'EUR'
   return <button className={`account-card account-${account.id} ${account.status.includes('pending') ? 'is-pending' : ''}`} onClick={onOpen}>
     <div className="account-visual">{art ? <img src={art} alt="" /> : <span className="monogram">AE</span>}</div>
     <strong>{account.institution}</strong>
@@ -147,7 +148,7 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
   return <div className="empty-state"><span><Icon size={27}/></span><h2>{title}</h2><p>{text}</p></div>
 }
 
-function DetailSheet({ selected, connection, candidates, transactions, onClose, toast, refresh }: { selected: NonNullable<Selected>; connection?: BankConnection; candidates: BankAccountCandidate[]; transactions: BankTransaction[]; onClose: () => void; toast: (message: string) => void; refresh: () => Promise<void> }) {
+function DetailSheet({ selected, bankAccount, connection, candidates, transactions, onClose, toast, refresh }: { selected: NonNullable<Selected>; bankAccount?: Account; connection?: BankConnection; candidates: BankAccountCandidate[]; transactions: BankTransaction[]; onClose: () => void; toast: (message: string) => void; refresh: () => Promise<void> }) {
   const { t, countryName, identifierName, language, locale } = usePreferences()
   const account = selected.kind === 'account' ? selected.item : null
   const membership = selected.kind === 'membership' ? selected.item : null
@@ -157,22 +158,24 @@ function DetailSheet({ selected, connection, candidates, transactions, onClose, 
   const [savedManualBalance, setSavedManualBalance] = useState(account?.manual_balance ?? null)
   const logo = account ? accountLogo[account.institution] : null
   const manual = account?.balance_mode === 'manual'
-  const connectable = !manual && account?.status === 'active' && ['Intesa Sanpaolo', 'Revolut'].includes(account.institution)
+  const bankingAccount = manual ? bankAccount : account
+  const hasBanking = Boolean(bankingAccount && bankingAccount.balance_mode !== 'manual')
+  const connectable = Boolean(bankingAccount?.status === 'active' && ['Intesa Sanpaolo', 'Revolut'].includes(bankingAccount.institution))
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); toast(t('common.copied')) }
   const connect = async () => {
-    if (!account) return
+    if (!bankingAccount) return
     setBusy(true)
-    try { await startBankConnection(account.id, language) } catch (error) { toast(error instanceof Error && error.message === 'ENABLE_BANKING_NOT_CONFIGURED' ? t('bank.notConfigured') : t('bank.connectFailed')); setBusy(false) }
+    try { await startBankConnection(bankingAccount.id, language) } catch (error) { toast(error instanceof Error && error.message === 'ENABLE_BANKING_NOT_CONFIGURED' ? t('bank.notConfigured') : t('bank.connectFailed')); setBusy(false) }
   }
   const sync = async () => {
-    if (!account) return
+    if (!bankingAccount) return
     setBusy(true)
-    try { await refreshBankConnection(account.id); await refresh(); toast(t('bank.refreshed')) } catch (error) { toast(error instanceof Error && error.message === 'REFRESH_COOLDOWN' ? t('bank.cooldown') : t('bank.refreshFailed')) } finally { setBusy(false) }
+    try { await refreshBankConnection(bankingAccount.id); await refresh(); toast(t('bank.refreshed')) } catch (error) { toast(error instanceof Error && error.message === 'REFRESH_COOLDOWN' ? t('bank.cooldown') : t('bank.refreshFailed')) } finally { setBusy(false) }
   }
   const choose = async (candidateId: string) => {
-    if (!account) return
+    if (!bankingAccount) return
     setBusy(true)
-    try { await selectBankAccount(account.id, candidateId); await refresh(); toast(t('bank.accountSelected')) } catch { toast(t('bank.selectionFailed')) } finally { setBusy(false) }
+    try { await selectBankAccount(bankingAccount.id, candidateId); await refresh(); toast(t('bank.accountSelected')) } catch { toast(t('bank.selectionFailed')) } finally { setBusy(false) }
   }
   const saveManualBalance = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -190,16 +193,16 @@ function DetailSheet({ selected, connection, candidates, transactions, onClose, 
         <div className="detail-brand"><span className={`detail-mark ${logo ? 'has-logo' : ''}`}>{logo ? <img src={logo} alt=""/> : account.institution.slice(0,2).toUpperCase()}</span><div><span className="eyebrow">{t('account.account')}</span><h2>{account.institution}</h2><p>{account.product_name ?? t('account.applicationPending')}</p></div></div>
         <Status value={connection?.status || account.status}/>
         {account.status.includes('pending') ? <div className="calm-message"><h3>{t('account.applicationPending')}</h3><p>{t('account.pendingText')}</p></div> : <>
-          <div className="detail-tabs" role="tablist"><button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>{t('bank.overview')}</button>{!manual && <button className={tab === 'transactions' ? 'active' : ''} onClick={() => setTab('transactions')}>{t('bank.transactions')}</button>}<button className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>{t('account.details')}</button></div>
+          <div className="detail-tabs" role="tablist"><button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>{t('bank.overview')}</button>{hasBanking && <button className={tab === 'transactions' ? 'active' : ''} onClick={() => setTab('transactions')}>{t('bank.transactions')}</button>}<button className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>{t('account.details')}</button></div>
           {tab === 'overview' && <div className="bank-overview">
-            {manual ? <><div className="balance-block"><span>{t('bank.manualBalance')}</span><strong>{savedManualBalance == null ? '—' : new Intl.NumberFormat(locale, { style: 'currency', currency: account.manual_currency || 'EUR' }).format(savedManualBalance)}</strong><small>{t('bank.manualHint')}</small></div><form className="manual-balance-form" onSubmit={saveManualBalance}><label>{t('bank.manualAmount')}<span><input type="number" inputMode="decimal" step="0.01" required value={manualBalance} onChange={(event) => setManualBalance(event.target.value)} placeholder="0,00"/><b>{account.manual_currency || 'EUR'}</b></span></label><button className="primary-button" disabled={busy}>{busy ? t('common.saving') : t('bank.manualSave')}</button></form></> : connection?.current_balance != null ? <div className="balance-block"><span>{t('bank.currentBalance')}</span><strong>{new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.current_balance)}</strong>{connection.available_balance != null && <small>{t('bank.available')}: {new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.available_balance)}</small>}</div> : <p className="bank-empty">{connectable ? t('bank.connectDescription') : t('bank.notAvailable')}</p>}
+            {manual ? <><div className="balance-block"><span>{t('bank.savingsBalance')}</span><strong>{savedManualBalance == null ? '—' : new Intl.NumberFormat(locale, { style: 'currency', currency: account.manual_currency || 'EUR' }).format(savedManualBalance)}</strong><small>{t('bank.manualHint')}</small></div><form className="manual-balance-form" onSubmit={saveManualBalance}><label>{t('bank.manualAmount')}<span><input type="number" inputMode="decimal" step="0.01" required value={manualBalance} onChange={(event) => setManualBalance(event.target.value)} placeholder="0,00"/><b>{account.manual_currency || 'EUR'}</b></span></label><button className="primary-button" disabled={busy}>{busy ? t('common.saving') : t('bank.manualSave')}</button></form>{connection?.current_balance != null && <div className="linked-balance-block"><div><span>{t('bank.currentAccount')}</span><small>{t('bank.openBankingReadOnly')}</small></div><strong>{new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.current_balance)}</strong></div>}</> : connection?.current_balance != null ? <div className="balance-block"><span>{t('bank.currentBalance')}</span><strong>{new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.current_balance)}</strong>{connection.available_balance != null && <small>{t('bank.available')}: {new Intl.NumberFormat(locale, { style: 'currency', currency: connection.currency || 'EUR' }).format(connection.available_balance)}</small>}</div> : <p className="bank-empty">{connectable ? t('bank.connectDescription') : t('bank.notAvailable')}</p>}
             {connection?.last_successful_sync && <p className="last-sync">{t('bank.lastSynced')} {new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(connection.last_successful_sync))}</p>}
             {connectable && (!connection || ['disconnected','reconnect_required'].includes(connection.status)) && <button className="primary-button" disabled={busy} onClick={connect}>{connection?.status === 'reconnect_required' ? t('bank.reconnect') : t('bank.connect')}</button>}
             {connection && ['connected','temporarily_unavailable'].includes(connection.status) && <button className="soft-button" disabled={busy} onClick={sync}><RefreshCw size={16}/>{busy ? t('bank.refreshing') : t('bank.refresh')}</button>}
             {connection?.status === 'temporarily_unavailable' && <p className="form-error">{t('bank.unableRefresh')}</p>}
             {connection?.status === 'selection_required' && <div className="candidate-list"><h3>{t('bank.chooseAccount')}</h3><p>{t('bank.chooseAccountText')}</p>{candidates.map(candidate => <button key={candidate.id} disabled={busy} onClick={() => choose(candidate.id)}><span><strong>{candidate.display_name || account.product_name}</strong><small>{[candidate.masked_identifier, candidate.currency].filter(Boolean).join(' · ')}</small></span><ChevronRight size={17}/></button>)}</div>}
           </div>}
-          {!manual && tab === 'transactions' && <div className="transaction-list">{transactions.length ? transactions.map(transaction => <article key={transaction.id}><div><strong>{transaction.counterparty || transaction.description || t('bank.transaction')}</strong><small>{transaction.booking_date ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(`${transaction.booking_date}T12:00:00`)) : ''}{transaction.status === 'pending' ? ` · ${t('bank.pending')}` : ''}</small></div><b className={transaction.amount < 0 ? 'debit' : 'credit'}>{new Intl.NumberFormat(locale, { style: 'currency', currency: transaction.currency }).format(transaction.amount)}</b></article>) : <p className="bank-empty">{connection ? t('bank.noTransactions') : t('bank.connectForTransactions')}</p>}</div>}
+          {hasBanking && tab === 'transactions' && <div className="transaction-list">{transactions.length ? transactions.map(transaction => <article key={transaction.id}><div><strong>{transaction.counterparty || transaction.description || t('bank.transaction')}</strong><small>{transaction.booking_date ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(`${transaction.booking_date}T12:00:00`)) : ''}{transaction.status === 'pending' ? ` · ${t('bank.pending')}` : ''}</small></div><b className={transaction.amount < 0 ? 'debit' : 'credit'}>{new Intl.NumberFormat(locale, { style: 'currency', currency: transaction.currency }).format(transaction.amount)}</b></article>) : <p className="bank-empty">{connection ? t('bank.noTransactions') : t('bank.connectForTransactions')}</p>}</div>}
           {tab === 'details' && <div className="detail-list"><h3>{t('account.details')}</h3>{account.country && <div><span>{t('account.country')}</span><strong>{countryName(account.country)}</strong></div>}{account.identifier_type && <div><span>{identifierName(account.identifier_type)}</span><strong className="private-value">{account.identifier_value ?? t('account.notAdded')}</strong>{account.identifier_value && <button onClick={() => copy(account.identifier_value!)}><Copy size={15}/> {t('account.copyIdentifier', { type: identifierName(account.identifier_type) })}</button>}</div>}<div><span>{t('account.notes')}</span><strong>{account.notes || t('account.notAdded')}</strong></div></div>}
         </>}
       </> : membership && <>
@@ -218,32 +221,54 @@ function DetailSheet({ selected, connection, candidates, transactions, onClose, 
   </div>
 }
 
-function DocumentCard({ item, refresh, toast }: { item: DocumentRecord; refresh: () => Promise<void>; toast: (message: string) => void }) {
+function DocumentPreview({ files, initialIndex, onClose, toast }: { files: DocumentFile[]; initialIndex: number; onClose: () => void; toast: (message: string) => void }) {
+  const { t } = usePreferences()
+  const [index, setIndex] = useState(initialIndex)
+  const [url, setUrl] = useState('')
+  const [loading, setLoading] = useState(true)
+  const file = files[index]
+  useEffect(() => {
+    let active = true
+    setLoading(true); setUrl('')
+    getDocumentPreviewUrl(file.storage_path).then((signedUrl) => { if (active) setUrl(signedUrl) }).catch(() => { if (active) toast(t('documents.previewFailed')) }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [file.id])
+  const move = (direction: number) => setIndex((index + direction + files.length) % files.length)
+  const image = file.mime_type?.startsWith('image/')
+  const pdf = file.mime_type === 'application/pdf'
+  return <div className="sheet-layer document-preview-layer" role="presentation" onMouseDown={onClose}>
+    <section className="document-preview" role="dialog" aria-modal="true" aria-label={t('documents.previewTitle')} onMouseDown={(event) => event.stopPropagation()}>
+      <header><div><span className="eyebrow">{t('documents.previewTitle')}</span><h2>{file.filename}</h2><p>{t('documents.filePosition', { current: index + 1, total: files.length })}</p></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={20}/></button></header>
+      <div className="preview-stage">{loading ? <span className="preview-loading">{t('documents.loadingPreview')}</span> : url && image ? <img src={url} alt={file.filename}/> : url && pdf ? <iframe src={url} title={file.filename}/> : <div className="preview-fallback"><FileText size={42}/><p>{t('documents.previewUnavailable')}</p><button className="soft-button" onClick={() => downloadDocument(file.storage_path, file.filename)}><Download size={16}/>{t('common.download')}</button></div>}</div>
+      {files.length > 1 && <><button className="preview-arrow previous" onClick={() => move(-1)} aria-label={t('documents.previousFile')}><ChevronLeft size={22}/></button><button className="preview-arrow next" onClick={() => move(1)} aria-label={t('documents.nextFile')}><ChevronRight size={22}/></button><nav className="preview-file-picker" aria-label={t('documents.files')} >{files.map((candidate, candidateIndex) => <button key={candidate.id} className={candidateIndex === index ? 'active' : ''} onClick={() => setIndex(candidateIndex)}>{candidateIndex + 1}<span>{candidate.filename}</span></button>)}</nav></>}
+    </section>
+  </div>
+}
+
+function DocumentCard({ item, files, refresh, toast }: { item: DocumentRecord; files: DocumentFile[]; refresh: () => Promise<void>; toast: (message: string) => void }) {
   const { t, documentName } = usePreferences()
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const enabled = item.document_type !== 'Patente italiana'
-  const choose = async (file?: File) => {
-    if (!file) return; setBusy(true)
-    try { await uploadDocument(item.id, item.country, item.document_type, file, item.storage_path); await refresh(); toast(t('documents.uploaded')) }
+  const choose = async (selectedFiles: File[]) => {
+    if (!selectedFiles.length) return; setBusy(true)
+    try { await uploadDocuments(item.id, item.country, item.document_type, selectedFiles); await refresh(); toast(t('documents.uploaded')) }
     catch { toast(t('documents.uploadFailed')) } finally { setBusy(false); if (input.current) input.current.value = '' }
   }
-  const remove = async () => {
-    if (!item.storage_path || !confirm(t('documents.deleteConfirm', { name: item.filename ?? documentName(item.document_type) }))) return
-    setBusy(true); try { await removeDocument(item.id, item.storage_path); await refresh(); toast(t('documents.deleted')) } catch { toast(t('documents.deleteFailed')) } finally { setBusy(false) }
+  const remove = async (file: DocumentFile) => {
+    if (!confirm(t('documents.deleteConfirm', { name: file.filename }))) return
+    setBusy(true); try { await removeDocumentFile(item.id, file.id, file.storage_path); await refresh(); toast(t('documents.deleted')) } catch { toast(t('documents.deleteFailed')) } finally { setBusy(false) }
   }
   return <article className={`document-card ${!enabled ? 'document-pending' : ''}`}>
     <div className="document-head"><span><FileText size={20}/></span><Status value={item.status}/></div>
-    <h3>{documentName(item.document_type)}</h3><p>{item.filename || (enabled ? t('documents.readyUpload') : t('documents.licencePending'))}</p>
+    <h3>{documentName(item.document_type)}</h3><p>{files.length ? t('documents.fileCount', { count: files.length }) : (enabled ? t('documents.readyUpload') : t('documents.licencePending'))}</p>
     {enabled && <div className="document-actions">
-      <input ref={input} type="file" hidden onChange={(e) => choose(e.target.files?.[0])} accept="application/pdf,image/jpeg,image/png,image/webp"/>
-      {item.storage_path ? <>
-        <button disabled={busy} onClick={() => downloadDocument(item.storage_path!, item.filename || 'document', true)}><CircleUserRound size={16}/> {t('common.view')}</button>
-        <button disabled={busy} onClick={() => downloadDocument(item.storage_path!, item.filename || 'document')}><Download size={16}/> {t('common.download')}</button>
-        <button disabled={busy} onClick={() => input.current?.click()}><Upload size={16}/> {t('common.replace')}</button>
-        <button className="danger" disabled={busy} onClick={remove}><Trash2 size={16}/> {t('common.delete')}</button>
-      </> : <button className="soft-button" disabled={busy} onClick={() => input.current?.click()}><Upload size={16}/>{busy ? t('documents.uploading') : t('documents.upload')}</button>}
+      <input ref={input} type="file" multiple hidden onChange={(event) => choose(Array.from(event.target.files ?? []))} accept="application/pdf,image/jpeg,image/png,image/webp"/>
+      <button className="soft-button" disabled={busy} onClick={() => input.current?.click()}><Upload size={16}/>{busy ? t('documents.uploading') : files.length ? t('documents.addFiles') : t('documents.upload')}</button>
     </div>}
+    {files.length > 0 && <div className="document-file-list">{files.map((file, index) => <div key={file.id}><button className="document-file-name" disabled={busy} onClick={() => setPreviewIndex(index)}><Eye size={15}/><span>{file.filename}</span></button><button disabled={busy} onClick={() => downloadDocument(file.storage_path, file.filename)} aria-label={t('documents.downloadFile', { name: file.filename })}><Download size={15}/></button><button className="danger" disabled={busy} onClick={() => remove(file)} aria-label={t('documents.deleteFile', { name: file.filename })}><Trash2 size={15}/></button></div>)}</div>}
+    {previewIndex != null && <DocumentPreview files={files} initialIndex={previewIndex} onClose={() => setPreviewIndex(null)} toast={toast}/>}
   </article>
 }
 
@@ -406,6 +431,16 @@ function App() {
   const showPage = (next: Page) => { setPage(next); setDrawer(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const signOut = async () => { await supabase?.auth.signOut() }
   const integrationStatus = (provider: string) => data.integrations.find((item) => item.provider.toLowerCase() === provider.toLowerCase())?.connection_status ?? 'not_connected'
+  const savingsAccount = filtered.accounts.find((account) => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')
+  const currentAccount = filtered.accounts.find((account) => account.institution === 'Intesa Sanpaolo' && account.balance_mode !== 'manual')
+  const visibleAccounts = savingsAccount && currentAccount
+    ? filtered.accounts.map((account) => account.id === currentAccount.id ? savingsAccount : account).filter((account, index, accounts) => accounts.findIndex(candidate => candidate.id === account.id) === index)
+    : filtered.accounts
+  const bankAccountFor = (account: Account) => account.balance_mode === 'manual' && account.institution === 'Intesa Sanpaolo'
+    ? data.accounts.find(candidate => candidate.institution === 'Intesa Sanpaolo' && candidate.balance_mode !== 'manual')
+    : account
+  const selectedBankAccount = selected?.kind === 'account' ? bankAccountFor(selected.item) : undefined
+  const selectedConnection = selectedBankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === selectedBankAccount.id) : undefined
 
   return <div className={`hub-shell ${drawer ? 'nav-open' : ''}`}>
     <aside className="sidebar">
@@ -428,21 +463,21 @@ function App() {
         {page === 'overview' && <>
           <section className="hero"><div><span className="eyebrow">{t('overview.eyebrow')}</span><h1>{t('overview.welcome')}</h1><p>{t('overview.subtitle')}</p><i/></div><img src={assetUrl('assets/lake-scene.svg')} alt=""/></section>
           <div className="dashboard-grid">
-            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{filtered.accounts.slice(0,5).map((item) => <AccountCard key={item.id} account={item} connection={data.bankConnections.find(connection => connection.canonical_account_id === item.id)} onOpen={() => setSelected({kind:'account',item})}/>)}</div></section>
+            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>{t('overview.quickAccess')}</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>{t('records.addAccount')}</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>{t('records.addMembership')}</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>{t('overview.uploadDocument')}</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>{t('overview.openNotes')}</button></div></section>
             <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
             <section className="panel document-summary"><div className="panel-heading"><h2>{t('overview.documents')}</h2><button onClick={() => showPage('documents')}>{t('common.open')} <ChevronRight size={15}/></button></div><div className="summary-list"><p><span>{t('overview.italianAwaiting')}</span><strong>{data.documents.filter(x => x.country === 'Italy' && x.status === 'not_uploaded').length}</strong></p><p><span>{t('overview.brazilianAwaiting')}</span><strong>{data.documents.filter(x => x.country === 'Brazil' && x.status === 'not_uploaded').length}</strong></p><p><span>{t('overview.licenceConversion')}</span><Status value="pending"/></p></div></section>
           </div>
         </>}
-        {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{filtered.accounts.map((item) => <AccountCard key={item.id} account={item} connection={data.bankConnections.find(connection => connection.canonical_account_id === item.id)} onOpen={() => setSelected({kind:'account',item})}/>)}</div></>}
+        {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{visibleAccounts.map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></>}
         {page === 'memberships' && <><PageHeader eyebrow={t('pages.loyalty')} title={t('nav.memberships')} action={<button className="primary-button compact" onClick={() => setCreateKind('membership')}><Plus size={17}/> {t('records.addMembership')}</button>}/><section className="panel standalone-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</section></>}
         {page === 'travel' && <><PageHeader eyebrow={t('pages.journeys')} title={t('nav.travel')}/><section className="panel empty-panel"><EmptyState icon={Plane} title={t('pages.travelEmptyTitle')} text={t('pages.travelEmptyText')}/></section></>}
-        {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} refresh={refresh} toast={toast}/>)}</div></div></>}
+        {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div></>}
         {page === 'notes' && <NotesView notes={filtered.notes} preview={preview} refresh={refresh} toast={toast}/>} 
         {page === 'settings' && <SettingsView preview={preview} integrationStatus={integrationStatus} bankConnections={data.bankConnections}/>}
       </div>
     </main>
-    {selected && <DetailSheet selected={selected} connection={selected.kind === 'account' ? data.bankConnections.find(connection => connection.canonical_account_id === selected.item.id) : undefined} candidates={selected.kind === 'account' ? data.bankAccountCandidates.filter(candidate => candidate.canonical_account_id === selected.item.id) : []} transactions={selected.kind === 'account' ? data.bankTransactions.filter(transaction => data.bankConnections.find(connection => connection.id === transaction.bank_connection_id)?.canonical_account_id === selected.item.id) : []} onClose={() => setSelected(null)} toast={toast} refresh={refresh}/>}
+    {selected && <DetailSheet selected={selected} bankAccount={selectedBankAccount} connection={selectedConnection} candidates={selectedBankAccount ? data.bankAccountCandidates.filter(candidate => candidate.canonical_account_id === selectedBankAccount.id) : []} transactions={selectedConnection ? data.bankTransactions.filter(transaction => transaction.bank_connection_id === selectedConnection.id) : []} onClose={() => setSelected(null)} toast={toast} refresh={refresh}/>}
     {createKind && <CreateRecordSheet kind={createKind} preview={preview} onClose={() => setCreateKind(null)} refresh={refresh} toast={toast}/>} 
     <div className={`toast ${toastText ? 'show' : ''}`} role="status"><Check size={16}/>{toastText}</div>
   </div>
