@@ -110,6 +110,15 @@ export interface BankTransaction {
   updated_at: string
 }
 
+export interface SavingsSnapshot {
+  id: string
+  account_id: string
+  amount: number
+  currency: string
+  recorded_at: string
+  created_at: string
+}
+
 export interface HubData {
   accounts: Account[]
   memberships: Membership[]
@@ -120,4 +129,5 @@ export interface HubData {
   bankConnections: BankConnection[]
   bankAccountCandidates: BankAccountCandidate[]
   bankTransactions: BankTransaction[]
+  savingsHistory: SavingsSnapshot[]
 }

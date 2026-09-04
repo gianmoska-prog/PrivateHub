@@ -117,6 +117,45 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .summary-list { padding: 0 18px 17px; }
 .summary-list p { min-height: 48px; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 15px; border-top: 1px solid #e7ecf1; color: #53637a; font-size: .76rem; }
 .summary-list strong { color: var(--ink); font-size: .9rem; }
+.savings-panel { position: relative; overflow: hidden; background: linear-gradient(145deg,rgba(255,255,255,.98),rgba(240,249,247,.96)); }
+.savings-panel::before { content: ""; position: absolute; width: 220px; height: 220px; inset: -110px -85px auto auto; border-radius: 50%; background: radial-gradient(circle,rgba(46,168,129,.16),transparent 68%); pointer-events: none; }
+.savings-heading { min-height: 72px; padding: 18px 20px 12px; position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.savings-heading .eyebrow { margin-bottom: 7px; color: #347c68; }
+.savings-heading h2 { margin: 0; font: italic 600 1.08rem var(--serif); }
+.savings-badge { min-height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cce5dc; border-radius: 18px; color: #246f59; background: rgba(237,250,246,.88); font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.savings-layout { padding: 0 16px 16px; display: grid; gap: 12px; }
+.savings-chart-card { padding: 16px; border: 1px solid #d8e9e3; border-radius: 14px; background: rgba(255,255,255,.88); }
+.savings-metrics { display: grid; grid-template-columns: 1fr auto; gap: 14px; }
+.savings-metrics div { display: grid; gap: 4px; }
+.savings-metrics div:last-child { text-align: right; }
+.savings-metrics span { color: var(--muted); font-size: .75rem; }
+.savings-metrics strong { font: 600 1.8rem var(--serif); letter-spacing: -.03em; }
+.savings-metrics b { color: var(--green); font-size: .88rem; }
+.savings-metrics b.negative { color: var(--danger); }
+.chart-wrap { min-height: 132px; margin: 8px -5px 2px; display: grid; place-items: center; }
+.chart-wrap svg { width: 100%; overflow: visible; }
+.chart-axis { stroke: #d9e5e1; stroke-width: 1; }
+.goal-band { fill: rgba(224,184,95,.14); }
+.savings-line { fill: none; stroke: #2f9878; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.savings-dot { fill: #fff; stroke: #258467; stroke-width: 4; }
+.chart-empty { max-width: 290px; min-height: 132px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #609280; text-align: center; }
+.chart-empty strong { color: var(--ink-soft); font-size: .84rem; }
+.chart-empty span { color: var(--muted); font-size: .75rem; line-height: 1.45; }
+.goal-progress { display: grid; gap: 7px; }
+.goal-progress > div { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: .72rem; }
+.goal-progress > div b { color: #286f5a; }
+.goal-progress > i { height: 7px; overflow: hidden; border-radius: 6px; background: #e3eee9; }
+.goal-progress > i span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#40ae88,#267b65); transition: width .6s var(--ease); }
+.goal-progress .goal-range small { font-size: .67rem; }
+.financial-review { padding: 17px; display: grid; grid-template-columns: 36px 1fr; gap: 0 10px; border: 1px solid #dae4f0; border-radius: 14px; background: linear-gradient(145deg,#f8fbff,#f2f7fc); }
+.review-icon { width: 36px; height: 36px; display: grid; place-items: center; grid-row: 1; border-radius: 11px; color: #346eb9; background: #e4effc; }
+.financial-review .eyebrow { margin: 1px 0 4px; }
+.financial-review h3 { margin: 0; font: 600 1rem var(--serif); }
+.financial-review > p,.financial-review > small { grid-column: 1/-1; }
+.financial-review > p { margin: 14px 0 0; color: var(--ink-soft); font-size: .84rem; line-height: 1.62; }
+.financial-review .momentum-note { padding: 11px 12px; display: flex; align-items: flex-start; gap: 8px; border-radius: 10px; color: #315f53; background: #eaf6f1; }
+.financial-review .momentum-note svg { flex: 0 0 auto; margin-top: 2px; }
+.financial-review > small { margin-top: 11px; color: var(--muted); font-size: .68rem; line-height: 1.5; }
 
 .page-header { min-height: 120px; padding: 22px 14px 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
 .page-header .eyebrow { margin-bottom: 9px; }
@@ -357,6 +396,11 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
   .hero h1 { font-size: 1.55rem; }
   .hero img { width: 115%; right: -40%; }
   .dashboard-grid { gap: 10px; margin-top: 10px; }
+  .savings-heading { padding: 16px 14px 10px; }
+  .savings-badge { font-size: .67rem; }
+  .savings-layout { padding: 0 11px 11px; }
+  .savings-chart-card { padding: 14px 12px; }
+  .savings-metrics strong { font-size: 1.55rem; }
   .account-grid,.full-account-grid { grid-template-columns: 1fr 1fr; padding-left: 12px; padding-right: 12px; }
   .account-grid .account-card:nth-child(n+3) { display: flex; }
   .account-grid .account-card:nth-child(n+5) { display: none; }
@@ -494,6 +538,15 @@ html, body, .hub-shell, .sidebar, .panel, .account-card, .quick-grid button, .me
 :root[data-theme="dark"] .membership-row > svg { color: #70849b; }
 :root[data-theme="dark"] .membership-logo img { filter: brightness(.92) contrast(.96); }
 :root[data-theme="dark"] .summary-list p { border-top-color: #293847; color: #aebdce; }
+:root[data-theme="dark"] .savings-panel { background: linear-gradient(145deg,#14231f,#131e2b); }
+:root[data-theme="dark"] .savings-chart-card { border-color: #29423b; background: rgba(19,31,42,.9); }
+:root[data-theme="dark"] .savings-badge { border-color: #31594d; color: #8ad1b9; background: #17362d; }
+:root[data-theme="dark"] .chart-axis { stroke: #34453f; }
+:root[data-theme="dark"] .savings-dot { fill: #14231f; stroke: #62c6a5; }
+:root[data-theme="dark"] .financial-review { border-color: #293d53; background: linear-gradient(145deg,#172536,#152230); }
+:root[data-theme="dark"] .review-icon { color: #9bc3f8; background: #1d3858; }
+:root[data-theme="dark"] .financial-review .momentum-note { color: #9bd5c1; background: #17362d; }
+:root[data-theme="dark"] .goal-progress > i { background: #263a34; }
 :root[data-theme="dark"] .document-head > span:first-child,
 :root[data-theme="dark"] .quick-grid button span,
 :root[data-theme="dark"] .empty-state > span,

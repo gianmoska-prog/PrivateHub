@@ -4,10 +4,10 @@ import type { Session } from '@supabase/supabase-js'
 import {
   Banknote, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, FileText,
   FolderClosed, Home, LockKeyhole, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
-  ShieldCheck, Star, Sun, Trash2, Upload, WifiOff, X,
+  ShieldCheck, Sparkles, Star, Sun, Target, TrendingUp, Trash2, Upload, WalletCards, WifiOff, X,
 } from 'lucide-react'
 import { createAccount, createMembership, deleteNote, downloadDocument, getDocumentPreviewUrl, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocumentFile, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, updateManualAccountBalance, uploadDocuments } from './supabase'
-import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord } from './types'
+import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord, SavingsSnapshot } from './types'
 import { usePreferences } from './preferences'
 
 type Page = 'overview' | 'accounts' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
@@ -44,7 +44,7 @@ const publicPreview: HubData = {
     { id: 'gmail', provider: 'Gmail', connection_status: 'not_connected', connected_at: null, updated_at: '' },
     { id: 'supabase', provider: 'Supabase', connection_status: 'not_connected', connected_at: null, updated_at: '' },
   ],
-  bankConnections: [], bankAccountCandidates: [], bankTransactions: [],
+  bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [],
 }
 
 const accountArt: Record<string, string> = {
@@ -148,6 +148,85 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
   return <div className="empty-state"><span><Icon size={27}/></span><h2>{title}</h2><p>{text}</p></div>
 }
 
+function SavingsProgressPanel({ account, history, transactions }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[] }) {
+  const { t, locale } = usePreferences()
+  const currency = account?.manual_currency || 'EUR'
+  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
+  const accountHistory = history
+    .filter((item) => item.account_id === account?.id)
+    .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
+  const weekly = Array.from(accountHistory.reduce((weeks, item) => {
+    const date = new Date(item.recorded_at)
+    const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+    const day = monday.getUTCDay() || 7
+    monday.setUTCDate(monday.getUTCDate() - day + 1)
+    weeks.set(monday.toISOString().slice(0, 10), item)
+    return weeks
+  }, new Map<string, SavingsSnapshot>()).entries()).map(([week, item]) => ({ week, amount: Number(item.amount) }))
+  const current = account?.manual_balance == null ? null : Number(account.manual_balance)
+  const previous = weekly.length > 1 ? weekly[weekly.length - 2].amount : null
+  const weeklyChange = current != null && previous != null ? current - previous : null
+  const chartMax = Math.max(12000, ...weekly.map((item) => item.amount * 1.08))
+  const chartPoints = weekly.map((item, index) => ({
+    ...item,
+    x: weekly.length === 1 ? 320 : 28 + (index / (weekly.length - 1)) * 584,
+    y: 178 - (item.amount / chartMax) * 150,
+  }))
+  const latestTransactionDate = transactions.reduce<Date | null>((latest, item) => {
+    const value = item.booking_date || item.transaction_date
+    if (!value) return latest
+    const date = new Date(`${value}T12:00:00Z`)
+    return !latest || date > latest ? date : latest
+  }, null)
+  const cutoff = latestTransactionDate ? new Date(latestTransactionDate.getTime() - 29 * 86400000) : null
+  const recent = cutoff ? transactions.filter((item) => {
+    const value = item.booking_date || item.transaction_date
+    return value && new Date(`${value}T12:00:00Z`) >= cutoff
+  }) : []
+  const outgoings = recent.filter((item) => Number(item.amount) < 0)
+  const incoming = recent.filter((item) => Number(item.amount) > 0)
+  const spent = outgoings.reduce((sum, item) => sum + Math.abs(Number(item.amount)), 0)
+  const received = incoming.reduce((sum, item) => sum + Number(item.amount), 0)
+  const largest = outgoings.reduce<BankTransaction | null>((winner, item) => !winner || Number(item.amount) < Number(winner.amount) ? item : winner, null)
+  const repeated = Array.from(outgoings.reduce((counts, item) => {
+    const label = (item.counterparty || item.description).trim().replace(/\s+/g, ' ')
+    if (label) counts.set(label, (counts.get(label) || 0) + 1)
+    return counts
+  }, new Map<string, number>()).entries()).filter(([, count]) => count >= 2).sort((a, b) => b[1] - a[1])[0]
+  const progressMin = Math.min(100, Math.max(0, ((current || 0) / 8000) * 100))
+  const progressMax = Math.min(100, Math.max(0, ((current || 0) / 12000) * 100))
+  const review = recent.length
+    ? `${t('savings.reviewMovements', { count: recent.length, spent: money(spent), received: money(received) })} ${largest ? t('savings.reviewLargest', { amount: money(Math.abs(Number(largest.amount))), name: largest.counterparty || largest.description }) : ''} ${repeated ? t('savings.reviewRecurring', { name: repeated[0], count: repeated[1] }) : t('savings.reviewNoRecurring')}`
+    : t('savings.reviewEmpty')
+  const momentum = current == null
+    ? t('savings.momentumStart')
+    : weeklyChange == null
+      ? t('savings.momentumFirst', { amount: money(current) })
+      : weeklyChange >= 0
+        ? t('savings.momentumUp', { amount: money(weeklyChange) })
+        : t('savings.momentumDown', { amount: money(Math.abs(weeklyChange)) })
+
+  return <section className="panel savings-panel">
+    <div className="savings-heading"><div><span className="eyebrow">{t('savings.eyebrow')}</span><h2>{t('savings.title')}</h2></div><span className="savings-badge"><Target size={16}/>{t('savings.goal')}</span></div>
+    <div className="savings-layout">
+      <div className="savings-chart-card">
+        <div className="savings-metrics"><div><span>{t('savings.current')}</span><strong>{current == null ? '—' : money(current)}</strong></div><div><span>{t('savings.weeklyChange')}</span><b className={weeklyChange != null && weeklyChange < 0 ? 'negative' : ''}>{weeklyChange == null ? '—' : `${weeklyChange >= 0 ? '+' : '−'}${money(Math.abs(weeklyChange))}`}</b></div></div>
+        <div className="chart-wrap">
+          {chartPoints.length ? <svg viewBox="0 0 640 205" role="img" aria-label={t('savings.chartLabel')}>
+            <defs><linearGradient id="savingsArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#38a882" stopOpacity=".28"/><stop offset="1" stopColor="#38a882" stopOpacity="0"/></linearGradient></defs>
+            <rect x="28" y={178 - (12000 / chartMax) * 150} width="584" height={(4000 / chartMax) * 150} rx="9" className="goal-band"/>
+            <line x1="28" y1="178" x2="612" y2="178" className="chart-axis"/>
+            {chartPoints.length > 1 && <><path d={`M ${chartPoints.map((point) => `${point.x} ${point.y}`).join(' L ')} L ${chartPoints[chartPoints.length - 1].x} 178 L ${chartPoints[0].x} 178 Z`} fill="url(#savingsArea)"/><polyline points={chartPoints.map((point) => `${point.x},${point.y}`).join(' ')} className="savings-line"/></>}
+            {chartPoints.map((point) => <g key={point.week}><circle cx={point.x} cy={point.y} r="5" className="savings-dot"/><title>{`${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${point.week}T12:00:00Z`))}: ${money(point.amount)}`}</title></g>)}
+          </svg> : <div className="chart-empty"><TrendingUp size={28}/><strong>{t('savings.emptyTitle')}</strong><span>{t('savings.emptyText')}</span></div>}
+        </div>
+        <div className="goal-progress"><div><span>{t('savings.toMinimum')}</span><b>{Math.round(progressMin)}%</b></div><i><span style={{ width: `${progressMin}%` }}/></i><div className="goal-range"><small>€8K</small><small>€12K · {Math.round(progressMax)}%</small></div></div>
+      </div>
+      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{review}</p><p className="momentum-note"><WalletCards size={17}/><span>{momentum}</span></p><small>{t('savings.reviewNote')}</small></aside>
+    </div>
+  </section>
+}
+
 function DetailSheet({ selected, bankAccount, connection, candidates, transactions, onClose, toast, refresh }: { selected: NonNullable<Selected>; bankAccount?: Account; connection?: BankConnection; candidates: BankAccountCandidate[]; transactions: BankTransaction[]; onClose: () => void; toast: (message: string) => void; refresh: () => Promise<void> }) {
   const { t, countryName, identifierName, language, locale } = usePreferences()
   const account = selected.kind === 'account' ? selected.item : null
@@ -181,7 +260,7 @@ function DetailSheet({ selected, bankAccount, connection, candidates, transactio
     event.preventDefault()
     if (!account) return
     const value = Number(manualBalance.replace(',', '.'))
-    if (!Number.isFinite(value)) { toast(t('bank.manualInvalid')); return }
+    if (!Number.isFinite(value) || value < 0) { toast(t('bank.manualInvalid')); return }
     setBusy(true)
     try { await updateManualAccountBalance(account.id, value, account.manual_currency || 'EUR'); setSavedManualBalance(value); await refresh(); toast(t('bank.manualSaved')) } catch { toast(t('records.saveFailed')) } finally { setBusy(false) }
   }
@@ -441,6 +520,9 @@ function App() {
     : account
   const selectedBankAccount = selected?.kind === 'account' ? bankAccountFor(selected.item) : undefined
   const selectedConnection = selectedBankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === selectedBankAccount.id) : undefined
+  const intesaBankAccount = data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode !== 'manual')
+  const intesaConnection = intesaBankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === intesaBankAccount.id) : undefined
+  const intesaTransactions = intesaConnection ? data.bankTransactions.filter(transaction => transaction.bank_connection_id === intesaConnection.id) : []
 
   return <div className={`hub-shell ${drawer ? 'nav-open' : ''}`}>
     <aside className="sidebar">
@@ -466,7 +548,7 @@ function App() {
             <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>{t('overview.quickAccess')}</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>{t('records.addAccount')}</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>{t('records.addMembership')}</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>{t('overview.uploadDocument')}</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>{t('overview.openNotes')}</button></div></section>
             <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
-            <section className="panel document-summary"><div className="panel-heading"><h2>{t('overview.documents')}</h2><button onClick={() => showPage('documents')}>{t('common.open')} <ChevronRight size={15}/></button></div><div className="summary-list"><p><span>{t('overview.italianAwaiting')}</span><strong>{data.documents.filter(x => x.country === 'Italy' && x.status === 'not_uploaded').length}</strong></p><p><span>{t('overview.brazilianAwaiting')}</span><strong>{data.documents.filter(x => x.country === 'Brazil' && x.status === 'not_uploaded').length}</strong></p><p><span>{t('overview.licenceConversion')}</span><Status value="pending"/></p></div></section>
+            <SavingsProgressPanel account={data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')} history={data.savingsHistory} transactions={intesaTransactions}/>
           </div>
         </>}
         {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{visibleAccounts.map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></>}

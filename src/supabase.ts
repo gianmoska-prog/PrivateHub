@@ -35,18 +35,18 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: authStorage },
 }) : null
 
-const blank: HubData = { accounts: [], memberships: [], documents: [], documentFiles: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [] }
+const blank: HubData = { accounts: [], memberships: [], documents: [], documentFiles: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [] }
 
 export async function loadHubData(): Promise<HubData> {
   if (!supabase) return blank
-  const tables = ['accounts', 'memberships', 'documents', 'document_files', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions'] as const
+  const tables = ['accounts', 'memberships', 'documents', 'document_files', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions', 'savings_history'] as const
   const results = await Promise.all(tables.map((table) => supabase.from(table).select('*').order('created_at', { ascending: true })))
   const failure = results.find((result) => result.error)
   if (failure?.error) throw failure.error
   return {
     accounts: results[0].data ?? [], memberships: results[1].data ?? [], documents: results[2].data ?? [], documentFiles: results[3].data ?? [],
     notes: results[4].data ?? [], integrations: results[5].data ?? [],
-    bankConnections: results[6].data ?? [], bankAccountCandidates: results[7].data ?? [], bankTransactions: results[8].data ?? [],
+    bankConnections: results[6].data ?? [], bankAccountCandidates: results[7].data ?? [], bankTransactions: results[8].data ?? [], savingsHistory: results[9].data ?? [],
   } as HubData
 }
 
@@ -74,7 +74,7 @@ export async function selectBankAccount(accountId: string, candidateId: string) 
 
 export async function updateManualAccountBalance(accountId: string, balance: number, currency: string) {
   if (!supabase) throw new Error('Supabase is not configured')
-  if (!Number.isFinite(balance)) throw new Error('Invalid balance')
+  if (!Number.isFinite(balance) || balance < 0) throw new Error('Invalid balance')
   const { error } = await supabase.from('accounts').update({ manual_balance: balance, manual_currency: currency }).eq('id', accountId).eq('balance_mode', 'manual')
   if (error) throw error
 }
