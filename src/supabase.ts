@@ -144,6 +144,13 @@ export async function getDocumentPreviewUrl(path: string) {
   return data.signedUrl
 }
 
+export async function prepareDocumentShare(path: string, filename: string, mimeType: string | null) {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { data, error } = await supabase.storage.from('private-hub-documents').download(path)
+  if (error) throw error
+  return new File([data], filename, { type: mimeType || data.type || 'application/octet-stream' })
+}
+
 export async function downloadDocument(path: string, filename: string) {
   if (!supabase) throw new Error('Supabase is not configured')
   const { data, error } = await supabase.storage.from('private-hub-documents').createSignedUrl(path, 300, { download: filename })

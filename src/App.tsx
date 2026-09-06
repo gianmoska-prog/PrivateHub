@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  Banknote, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, FileText,
+  Banknote, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, EyeOff, Share2, FileText,
   FolderClosed, Home, LockKeyhole, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Sparkles, Star, Sun, Target, TrendingUp, Trash2, Upload, WalletCards, WifiOff, X,
 } from 'lucide-react'
-import { createAccount, createMembership, deleteNote, downloadDocument, getDocumentPreviewUrl, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocumentFile, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, updateManualAccountBalance, uploadDocuments } from './supabase'
+import { prepareDocumentShare, createAccount, createMembership, deleteNote, downloadDocument, getDocumentPreviewUrl, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocumentFile, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, updateManualAccountBalance, uploadDocuments } from './supabase'
 import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord, SavingsSnapshot } from './types'
 import { usePreferences } from './preferences'
 
@@ -120,7 +120,7 @@ function Status({ value }: { value: string }) {
   return <span className={`status ${active ? 'status-active' : 'status-muted'}`}><i/>{label}</span>
 }
 
-function AccountCard({ account, connection, onOpen }: { account: Account; connection?: BankConnection; onOpen: () => void }) {
+function AccountCard({ account, connection, onOpen, amountsHidden = false }: { account: Account; connection?: BankConnection; onOpen: () => void; amountsHidden?: boolean }) {
   const { t, identifierName, locale } = usePreferences()
   const art = accountArt[account.institution]
   const balance = account.balance_mode === 'manual' ? account.manual_balance : connection?.current_balance
@@ -129,7 +129,7 @@ function AccountCard({ account, connection, onOpen }: { account: Account; connec
     <div className="account-visual">{art ? <img src={art} alt="" /> : <span className="monogram">AE</span>}</div>
     <strong>{account.institution}</strong>
     <span>{account.product_name ?? t('account.applicationPending')}</span>
-    {balance != null && <b className="account-balance">{new Intl.NumberFormat(locale, { style: 'currency', currency }).format(balance)}</b>}
+    {balance != null && <b className={amountsHidden ? "account-balance money-masked" : "account-balance"} aria-label={amountsHidden ? t("privacy.hidden") : undefined}>{amountsHidden ? "••••••" : new Intl.NumberFormat(locale, { style: 'currency', currency }).format(balance)}</b>}
     <small>{account.balance_mode === 'manual' ? t('bank.manualBalance') : account.identifier_type ? t('account.identifierSecured', { type: identifierName(account.identifier_type) }) : t('account.noIdentifier')}</small>
     <Status value={connection?.status || account.status}/>
   </button>
@@ -149,10 +149,10 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
   return <div className="empty-state"><span><Icon size={27}/></span><h2>{title}</h2><p>{text}</p></div>
 }
 
-function SavingsProgressPanel({ account, history, transactions }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[] }) {
+function SavingsProgressPanel({ account, history, transactions, amountsHidden }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[]; amountsHidden: boolean }) {
   const { t, locale } = usePreferences()
   const currency = account?.manual_currency || 'EUR'
-  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+  const money = (value: number) => amountsHidden ? '••••••' : new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
   const accountHistory = history
     .filter((item) => item.account_id === account?.id)
     .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
@@ -212,12 +212,12 @@ function SavingsProgressPanel({ account, history, transactions }: { account?: Ac
         : t('savings.momentumDown', { amount: money(Math.abs(weeklyChange)) })
 
   return <section className="panel savings-panel">
-    <div className="savings-heading"><div><span className="eyebrow">{t('savings.eyebrow')}</span><h2>{t('savings.title')}</h2></div><span className="savings-badge"><Target size={16}/>{t('savings.goal')}</span></div>
-    <div className="savings-layout">
+    <div className="savings-heading"><div><span className="eyebrow">{t('savings.eyebrow')}</span><h2>{t('savings.title')}</h2></div><span className="savings-badge"><Target size={16}/>{amountsHidden ? '••••••' : t('savings.goal')}</span></div>
+    <div className={`savings-layout ${amountsHidden ? "amounts-hidden" : ""}`}>
       <div className="savings-chart-card">
         <div className="savings-metrics"><div><span>{t('savings.current')}</span><strong>{current == null ? '—' : money(current)}</strong></div><div><span>{t('savings.weeklyChange')}</span><b className={weeklyChange != null && weeklyChange < 0 ? 'negative' : ''}>{weeklyChange == null ? '—' : `${weeklyChange >= 0 ? '+' : '−'}${money(Math.abs(weeklyChange))}`}</b></div></div>
         <div className="chart-wrap">
-          {chartPoints.length ? <svg viewBox="0 0 640 205" role="img" aria-label={t('savings.chartLabel')}>
+          {amountsHidden ? <div className="chart-empty money-masked" aria-label={t("privacy.hidden")}>••••••</div> : chartPoints.length ? <svg viewBox="0 0 640 205" role="img" aria-label={t('savings.chartLabel')}>
             <defs><linearGradient id="savingsArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#38a882" stopOpacity=".28"/><stop offset="1" stopColor="#38a882" stopOpacity="0"/></linearGradient></defs>
             <rect x="28" y={178 - (12000 / chartMax) * 150} width="584" height={(4000 / chartMax) * 150} rx="9" className="goal-band"/>
             <line x1="28" y1="178" x2="612" y2="178" className="chart-axis"/>
@@ -225,9 +225,9 @@ function SavingsProgressPanel({ account, history, transactions }: { account?: Ac
             {chartPoints.map((point) => <g key={point.week}><circle cx={point.x} cy={point.y} r="5" className="savings-dot"/><title>{`${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${point.week}T12:00:00Z`))}: ${money(point.amount)}`}</title></g>)}
           </svg> : <div className="chart-empty"><TrendingUp size={28}/><strong>{t('savings.emptyTitle')}</strong><span>{t('savings.emptyText')}</span></div>}
         </div>
-        <div className="goal-progress"><div><span>{t('savings.toMinimum')}</span><b>{Math.round(progressMin)}%</b></div><i><span style={{ width: `${progressMin}%` }}/></i><div className="goal-range"><small>€8K</small><small>€12K · {Math.round(progressMax)}%</small></div></div>
+        <div className="goal-progress"><div><span>{amountsHidden ? t('privacy.hidden') : t('savings.toMinimum')}</span><b>{amountsHidden ? '•••' : `${Math.round(progressMin)}%`}</b></div><i><span style={{ width: `${amountsHidden ? 0 : progressMin}%` }}/></i><div className="goal-range"><small>{amountsHidden ? '•••' : '€8K'}</small><small>{amountsHidden ? '•••' : `€12K · ${Math.round(progressMax)}%`}</small></div></div>
       </div>
-      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{review}</p><p className="momentum-note"><WalletCards size={17}/><span>{momentum}</span></p><small>{t('savings.reviewNote')}</small></aside>
+      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{amountsHidden ? t('privacy.reviewHidden') : review}</p><p className="momentum-note"><WalletCards size={17}/><span>{amountsHidden ? '••••••' : momentum}</span></p><small>{t('savings.reviewNote')}</small></aside>
     </div>
   </section>
 }
@@ -329,6 +329,50 @@ function DocumentPreview({ files, initialIndex, onClose, toast }: { files: Docum
   </div>
 }
 
+function DocumentShare({ file, toast }: { file: DocumentFile; toast: (message: string) => void }) {
+  const { t } = usePreferences()
+  const [open, setOpen] = useState(false)
+  const [prepared, setPrepared] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    setPrepared(null); setBusy(true); setFailed(false)
+    prepareDocumentShare(file.storage_path, file.filename, file.mime_type)
+      .then(value => { if (active) setPrepared(value) })
+      .catch(() => { if (active) setFailed(true) })
+      .finally(() => { if (active) setBusy(false) })
+    return () => { active = false }
+  }, [open, file.id])
+  const canShare = prepared && !!navigator.share && !!navigator.canShare?.({ files: [prepared] })
+  const share = async () => {
+    if (!prepared) return
+    setBusy(true)
+    try { await navigator.share({ files: [prepared] }); setOpen(false) }
+    catch (error) { if (error instanceof Error && error.name === 'AbortError') setOpen(false); else setFailed(true) }
+    finally { setBusy(false) }
+  }
+  const download = async () => {
+    try {
+      if (!prepared) { await downloadDocument(file.storage_path, file.filename); return }
+      const url = URL.createObjectURL(prepared)
+      const link = document.createElement('a')
+      link.href = url; link.download = file.filename; link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch { toast(t('documents.shareFailed')) }
+  }
+  return <><button onClick={() => setOpen(true)} aria-label={t('documents.shareFile', { name: file.filename })}><Share2 size={15}/></button>
+    {open && <div className="sheet-layer document-preview-layer" onMouseDown={() => setOpen(false)}><section className="share-dialog" role="dialog" aria-modal="true" aria-label={t('documents.share')} onMouseDown={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') setOpen(false) }}>
+      <button autoFocus className="icon-button" onClick={() => setOpen(false)} aria-label={t('common.close')}><X size={20}/></button>
+      <h2>{t('documents.share')}</h2><p>{file.filename}</p>
+      <p role="status">{busy ? t('documents.preparingShare') : failed ? t('documents.shareFailed') : canShare ? t('documents.shareReady') : t('documents.shareFallback')}</p>
+      {canShare && !failed && <button className="primary-button" disabled={busy} onClick={share}><Share2 size={17}/>{t('documents.chooseApp')}</button>}
+      {!busy && <button className="soft-button" onClick={download}><Download size={17}/>{t('common.download')}</button>}
+    </section></div>}
+  </>
+}
+
 function DocumentCard({ item, files, refresh, toast }: { item: DocumentRecord; files: DocumentFile[]; refresh: () => Promise<void>; toast: (message: string) => void }) {
   const { t, documentName } = usePreferences()
   const input = useRef<HTMLInputElement>(null)
@@ -351,7 +395,7 @@ function DocumentCard({ item, files, refresh, toast }: { item: DocumentRecord; f
       <input ref={input} type="file" multiple hidden onChange={(event) => choose(Array.from(event.target.files ?? []))} accept="application/pdf,image/jpeg,image/png,image/webp"/>
       <button className="soft-button" disabled={busy} onClick={() => input.current?.click()}><Upload size={16}/>{busy ? t('documents.uploading') : files.length ? t('documents.addFiles') : t('documents.upload')}</button>
     </div>}
-    {files.length > 0 && <div className="document-file-list">{files.map((file, index) => <div key={file.id}><button className="document-file-name" disabled={busy} onClick={() => setPreviewIndex(index)}><Eye size={15}/><span>{file.filename}</span></button><button disabled={busy} onClick={() => downloadDocument(file.storage_path, file.filename)} aria-label={t('documents.downloadFile', { name: file.filename })}><Download size={15}/></button><button className="danger" disabled={busy} onClick={() => remove(file)} aria-label={t('documents.deleteFile', { name: file.filename })}><Trash2 size={15}/></button></div>)}</div>}
+    {files.length > 0 && <div className="document-file-list">{files.map((file, index) => <div key={file.id}><button className="document-file-name" disabled={busy} onClick={() => setPreviewIndex(index)}><Eye size={15}/><span>{file.filename}</span></button><button disabled={busy} onClick={() => downloadDocument(file.storage_path, file.filename)} aria-label={t('documents.downloadFile', { name: file.filename })}><Download size={15}/></button><DocumentShare file={file} toast={toast}/><button className="danger" disabled={busy} onClick={() => remove(file)} aria-label={t('documents.deleteFile', { name: file.filename })}><Trash2 size={15}/></button></div>)}</div>}
     {previewIndex != null && <DocumentPreview files={files} initialIndex={previewIndex} onClose={() => setPreviewIndex(null)} toast={toast}/>}
   </article>
 }
@@ -461,6 +505,8 @@ function App() {
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured)
   const [data, setData] = useState<HubData>(publicPreview)
   const [page, setPage] = useState<Page>('overview')
+  const [amountsHidden, setAmountsHidden] = useState(true)
+  useEffect(() => { setAmountsHidden(true) }, [session?.user.id])
   const [drawer, setDrawer] = useState(false)
   const [selected, setSelected] = useState<Selected>(null)
   const [query, setQuery] = useState('')
@@ -542,6 +588,7 @@ function App() {
         <button className="icon-button mobile-menu" onClick={() => setDrawer(true)} aria-label={t('app.openNavigation')}><Menu size={22}/></button>
         <label className="search-field"><Search size={17}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('app.search')}/><kbd>⌘K</kbd></label>
         <div className="topbar-fill"/>
+        {page === "overview" && <button className="icon-button" aria-label={t(amountsHidden ? "privacy.show" : "privacy.hide")} title={t(amountsHidden ? "privacy.show" : "privacy.hide")} aria-pressed={!amountsHidden} onClick={() => setAmountsHidden(value => !value)}>{amountsHidden ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}
         <span className="date"><CalendarDays size={17}/>{new Intl.DateTimeFormat(locale,{weekday:'long',month:'short',day:'numeric'}).format(new Date())}</span>
         <button className="profile" onClick={preview ? () => toast(t('app.previewMode')) : signOut}><span>GM</span><b>Gianluca<small>{preview ? t('app.preview') : t('app.personal')}</small></b>{preview ? <ShieldCheck size={16}/> : <LogOut size={16}/>}</button>
       </header>
@@ -550,10 +597,10 @@ function App() {
         {page === 'overview' && <>
           <section className="hero"><div><span className="eyebrow">{t('overview.eyebrow')}</span><h1>{t('overview.welcome')}</h1><p>{t('overview.subtitle')}</p><i/></div><img src={assetUrl('assets/lake-scene.svg')} alt=""/></section>
           <div className="dashboard-grid">
-            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
+            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard amountsHidden={amountsHidden} key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>{t('overview.quickAccess')}</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>{t('records.addAccount')}</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>{t('records.addMembership')}</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>{t('overview.uploadDocument')}</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>{t('overview.openNotes')}</button></div></section>
             <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
-            <SavingsProgressPanel account={data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')} history={data.savingsHistory} transactions={intesaTransactions}/>
+            <SavingsProgressPanel amountsHidden={amountsHidden} account={data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')} history={data.savingsHistory} transactions={intesaTransactions}/>
           </div>
         </>}
         {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{visibleAccounts.map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></>}

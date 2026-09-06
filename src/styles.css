@@ -186,7 +186,13 @@ kbd { padding: 3px 6px; border: 0; border-radius: 5px; background: #f3f6f9; colo
 .document-actions button { min-height: 38px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); cursor: pointer; font-size: .7rem; }
 .document-actions .danger { color: var(--danger); }
 .document-file-list { margin-top: 13px; display: grid; gap: 7px; }
-.document-file-list > div { min-width: 0; min-height: 38px; display: grid; grid-template-columns: minmax(0,1fr) 36px 36px; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.document-file-list > div { min-width: 0; min-height: 44px; display: grid; grid-template-columns: minmax(0,1fr) 36px 36px 36px; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.money-masked, .amounts-hidden .savings-metrics strong, .amounts-hidden .savings-metrics b, .amounts-hidden .goal-range, .amounts-hidden .momentum-note span { filter: blur(5px); user-select: none; }
+.share-dialog { width: min(440px,100%); padding: 24px; border-radius: 18px; background: var(--surface); color: var(--ink); box-shadow: 0 20px 80px #0004; }
+.share-dialog > .icon-button { float: right; }
+.share-dialog h2 { font-size: 1.2rem; }
+.share-dialog p { overflow-wrap: anywhere; font-size: 1rem; line-height: 1.5; }
+.document-file-list .share-dialog button { min-height: 44px; height: auto; display: inline-flex; padding: 10px 14px; gap: 8px; margin: 4px; }
 .document-file-list button { height: 36px; display: grid; place-items: center; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
 .document-file-list .document-file-name { min-width: 0; padding: 0 9px; grid-template-columns: auto minmax(0,1fr); gap: 7px; color: var(--ink-soft); text-align: left; }
 .document-file-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .68rem; }
