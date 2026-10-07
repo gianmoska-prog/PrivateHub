@@ -54,7 +54,7 @@ test('review prioritises actionable context and bounds named near-term examples'
   const review = predictedExpenseReview(items, today, 'en-GB', t).join(' ')
   assert.match(review, /Overdue dental.*Confirm whether/)
   assert.match(review, /expected today/)
-  assert.match(review, /~.*785\.00.*Service.*Insurance/)
+  assert.match(review, /~.*885\.00.*Service.*Insurance/)
   assert.doesNotMatch(review, /Small third/)
   assert.match(review, /Large later/)
   assert.match(review, /no confirmed date/)

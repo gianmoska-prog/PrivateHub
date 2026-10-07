@@ -90,18 +90,18 @@ export function predictedExpenseReview(expenses: PredictedExpense[], today: stri
   const money = (items: PredictedExpense[]) => formatExpenseTotal(expenseTotal(items), locale, t)
   const detail = (item: PredictedExpense) => `${item.title} (${formatExpenseAmount(item, locale, t)})`
   const lines: string[] = []
-  if (summary.overdue.length) lines.push(t('expenses.reviewOverdue', { count: summary.overdue.length, expense: detail(summary.overdue[0]) }))
+  if (summary.overdue.length) lines.push(t(summary.overdue.length === 1 ? 'expenses.reviewOverdueOne' : 'expenses.reviewOverdue', { count: summary.overdue.length, expense: detail(summary.overdue[0]) }))
   const todayItems = summary.next14.filter(item => expenseTiming(item.expected_date, today) === 'today')
-  if (todayItems.length) lines.push(t('expenses.reviewToday', { count: todayItems.length, amount: money(todayItems) }))
+  if (todayItems.length) lines.push(t(todayItems.length === 1 ? 'expenses.reviewTodayOne' : 'expenses.reviewToday', { count: todayItems.length, amount: money(todayItems) }))
   const coming = summary.next14.filter(item => expenseTiming(item.expected_date, today) !== 'today')
   if (coming.length) {
     const examples = [...coming].sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)).slice(0, 2).map(detail).join(', ')
-    lines.push(t('expenses.reviewSoon', { amount: money(coming), examples }))
+    lines.push(t('expenses.reviewSoon', { amount: money(summary.next14), examples }))
   }
   const later = summary.upcoming.filter(item => !summary.overdue.includes(item) && !summary.next14.includes(item))
   const large = [...later].filter(item => Number(item.amount || 0) >= 500).sort((a, b) => Number(b.amount) - Number(a.amount))[0]
   if (large) lines.push(t('expenses.reviewLarge', { expense: detail(large) }))
-  else if (!summary.overdue.length && !summary.next14.length && later.length) lines.push(t('expenses.reviewLater', { count: later.length, amount: money(later) }))
-  if (summary.undated.length) lines.push(t('expenses.reviewUndated', { count: summary.undated.length }))
+  else if (!summary.overdue.length && !summary.next14.length && later.length) lines.push(t(later.length === 1 ? 'expenses.reviewLaterOne' : 'expenses.reviewLater', { count: later.length, amount: money(later) }))
+  if (summary.undated.length) lines.push(t(summary.undated.length === 1 ? 'expenses.reviewUndatedOne' : 'expenses.reviewUndated', { count: summary.undated.length }))
   return lines
 }
