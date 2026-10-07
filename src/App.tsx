@@ -7,16 +7,18 @@ import {
   ShieldCheck, Sparkles, Star, Sun, Target, TrendingUp, Trash2, Upload, WalletCards, WifiOff, X,
 } from 'lucide-react'
 import { prepareDocumentShare, createAccount, createMembership, deleteNote, downloadDocument, getDocumentPreviewUrl, getKeepSignedInPreference, isSupabaseConfigured, loadHubData, refreshBankConnection, removeDocumentFile, saveNote, selectBankAccount, setKeepSignedInPreference, startBankConnection, supabase, updateManualAccountBalance, uploadDocuments } from './supabase'
-import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord, SavingsSnapshot } from './types'
+import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord, PredictedExpense, SavingsSnapshot } from './types'
 import { usePreferences } from './preferences'
+import { FutureExpenseReview, FutureExpensesOverview, PredictedExpensesView, useLocalToday } from './PredictedExpenses'
 
-type Page = 'overview' | 'accounts' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
+type Page = 'overview' | 'accounts' | 'expenses' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
 type Selected = { kind: 'account'; item: Account } | { kind: 'membership'; item: Membership } | null
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`
 
 const NAV: { id: Page; key: string; icon: typeof Home }[] = [
   { id: 'overview', key: 'nav.overview', icon: Home },
   { id: 'accounts', key: 'nav.accounts', icon: Banknote },
+  { id: 'expenses', key: 'nav.expenses', icon: CalendarDays },
   { id: 'memberships', key: 'nav.memberships', icon: Star },
   { id: 'travel', key: 'nav.travel', icon: Plane },
   { id: 'documents', key: 'nav.documents', icon: FileText },
@@ -45,7 +47,7 @@ const publicPreview: HubData = {
     { id: 'gmail', provider: 'Gmail', connection_status: 'not_connected', connected_at: null, updated_at: '' },
     { id: 'supabase', provider: 'Supabase', connection_status: 'not_connected', connected_at: null, updated_at: '' },
   ],
-  bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [],
+  bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [], predictedExpenses: [],
 }
 
 const accountArt: Record<string, string> = {
@@ -149,7 +151,7 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
   return <div className="empty-state"><span><Icon size={27}/></span><h2>{title}</h2><p>{text}</p></div>
 }
 
-function SavingsProgressPanel({ account, history, transactions, amountsHidden }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[]; amountsHidden: boolean }) {
+function SavingsProgressPanel({ account, history, transactions, amountsHidden, expenses, today, onExpenses }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[]; amountsHidden: boolean; expenses: PredictedExpense[]; today: string; onExpenses: () => void }) {
   const { t, locale } = usePreferences()
   const currency = account?.manual_currency || 'EUR'
   const money = (value: number) => amountsHidden ? '••••••' : new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
@@ -227,7 +229,7 @@ function SavingsProgressPanel({ account, history, transactions, amountsHidden }:
         </div>
         <div className="goal-progress"><div><span>{amountsHidden ? t('privacy.hidden') : t('savings.toMinimum')}</span><b>{amountsHidden ? '•••' : `${Math.round(progressMin)}%`}</b></div><i><span style={{ width: `${amountsHidden ? 0 : progressMin}%` }}/></i><div className="goal-range"><small>{amountsHidden ? '•••' : '€8K'}</small><small>{amountsHidden ? '•••' : `€12K · ${Math.round(progressMax)}%`}</small></div></div>
       </div>
-      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{amountsHidden ? t('privacy.reviewHidden') : review}</p><p className="momentum-note"><WalletCards size={17}/><span>{amountsHidden ? '••••••' : momentum}</span></p><small>{t('savings.reviewNote')}</small></aside>
+      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{amountsHidden ? t('privacy.reviewHidden') : review}</p><p className="momentum-note"><WalletCards size={17}/><span>{amountsHidden ? '••••••' : momentum}</span></p><FutureExpenseReview expenses={expenses} today={today} amountsHidden={amountsHidden} onOpen={onExpenses}/><small>{t('savings.reviewNote')}</small></aside>
     </div>
   </section>
 }
@@ -506,6 +508,7 @@ function App() {
   const [data, setData] = useState<HubData>(publicPreview)
   const [page, setPage] = useState<Page>('overview')
   const [amountsHidden, setAmountsHidden] = useState(true)
+  const today = useLocalToday()
   useEffect(() => { setAmountsHidden(true) }, [session?.user.id])
   const [drawer, setDrawer] = useState(false)
   const [selected, setSelected] = useState<Selected>(null)
@@ -516,6 +519,12 @@ function App() {
 
   const toast = (message: string) => { setToastText(message); window.setTimeout(() => setToastText(''), 2200) }
   const refresh = async () => { if (!preview) setData(await loadHubData()) }
+  const expenseChanged = (expense: PredictedExpense) => setData(current => ({
+    ...current,
+    predictedExpenses: expense.deleted_at
+      ? current.predictedExpenses.filter(item => item.id !== expense.id)
+      : [...current.predictedExpenses.filter(item => item.id !== expense.id), expense],
+  }))
   useEffect(() => {
     if (!supabase) return
     supabase.auth.getSession().then(({ data: auth }) => { setSession(auth.session); setAuthReady(true) })
@@ -588,7 +597,7 @@ function App() {
         <button className="icon-button mobile-menu" onClick={() => setDrawer(true)} aria-label={t('app.openNavigation')}><Menu size={22}/></button>
         <label className="search-field"><Search size={17}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('app.search')}/><kbd>⌘K</kbd></label>
         <div className="topbar-fill"/>
-        {page === "overview" && <button className="icon-button" aria-label={t(amountsHidden ? "privacy.show" : "privacy.hide")} title={t(amountsHidden ? "privacy.show" : "privacy.hide")} aria-pressed={!amountsHidden} onClick={() => setAmountsHidden(value => !value)}>{amountsHidden ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}
+        {(page === 'overview' || page === 'expenses') && <button className="icon-button" aria-label={t(amountsHidden ? "privacy.show" : "privacy.hide")} title={t(amountsHidden ? "privacy.show" : "privacy.hide")} aria-pressed={!amountsHidden} onClick={() => setAmountsHidden(value => !value)}>{amountsHidden ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}
         <span className="date"><CalendarDays size={17}/>{new Intl.DateTimeFormat(locale,{weekday:'long',month:'short',day:'numeric'}).format(new Date())}</span>
         <button className="profile" onClick={preview ? () => toast(t('app.previewMode')) : signOut}><span>GM</span><b>Gianluca<small>{preview ? t('app.preview') : t('app.personal')}</small></b>{preview ? <ShieldCheck size={16}/> : <LogOut size={16}/>}</button>
       </header>
@@ -600,7 +609,8 @@ function App() {
             <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard amountsHidden={amountsHidden} key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>{t('overview.quickAccess')}</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>{t('records.addAccount')}</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>{t('records.addMembership')}</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>{t('overview.uploadDocument')}</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>{t('overview.openNotes')}</button></div></section>
             <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
-            <SavingsProgressPanel amountsHidden={amountsHidden} account={data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')} history={data.savingsHistory} transactions={intesaTransactions}/>
+            <SavingsProgressPanel amountsHidden={amountsHidden} account={data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')} history={data.savingsHistory} transactions={intesaTransactions} expenses={data.predictedExpenses} today={today} onExpenses={() => showPage('expenses')}/>
+            <FutureExpensesOverview expenses={data.predictedExpenses} today={today} amountsHidden={amountsHidden} onOpen={() => showPage('expenses')}/>
           </div>
         </>}
         {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{visibleAccounts.map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></>}
@@ -608,6 +618,7 @@ function App() {
         {page === 'travel' && <><PageHeader eyebrow={t('pages.journeys')} title={t('nav.travel')}/><section className="panel empty-panel"><EmptyState icon={Plane} title={t('pages.travelEmptyTitle')} text={t('pages.travelEmptyText')}/></section></>}
         {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.payslipsSection')}</h2><p>{t('documents.payslipsText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Payslips').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.miscellaneousSection')}</h2><p>{t('documents.miscellaneousText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Miscellaneous').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div></>}
         {page === 'notes' && <NotesView notes={filtered.notes} preview={preview} refresh={refresh} toast={toast}/>} 
+        {page === 'expenses' && <PredictedExpensesView expenses={data.predictedExpenses} today={today} amountsHidden={amountsHidden} query={query} preview={preview} onChanged={expenseChanged} toast={toast}/>}
         {page === 'settings' && <SettingsView preview={preview} integrationStatus={integrationStatus} bankConnections={data.bankConnections}/>}
       </div>
     </main>

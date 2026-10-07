@@ -43,5 +43,13 @@ Runtime secrets belong only in the dedicated Supabase project as `ENABLE_BANKING
 
 ## Checks
 
+- `npm test`
+
 - `npm run typecheck`
 - `npm run build`
+
+## Predicted Future Expenses
+
+Future expenses are private, owner-scoped Supabase records in `predicted_expenses`, loaded with the existing hub data. Amounts are EUR and may be confirmed, estimated or unknown; dates are optional calendar dates. The section supports editing, completion, reopening, search and confirmed soft deletion. Completion records a server timestamp and preserves the entry in history. Saves reject stale versions rather than overwrite another device's changes.
+
+The overview financial review uses the same calendar grouping and projected totals as the expenses section: today, the next 7/14 days, overdue, later and undated. Estimates carry `~`; unknown amounts are disclosed separately. Completed/deleted records never enter projections or review warnings. Local calendar dates update at midnight and on returning to the app, including across DST. The daily Chrome review automation also reads this section after reloading private data; it does not mark expenses paid or move money. The W212 savings balance remains separate from these planning totals.

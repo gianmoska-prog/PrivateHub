@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import type { HubData, NoteRecord } from './types'
+import type { HubData, NoteRecord, PredictedExpense, PredictedExpenseInput } from './types'
+import { validateExpense } from './expenses'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
@@ -35,19 +36,43 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: authStorage },
 }) : null
 
-const blank: HubData = { accounts: [], memberships: [], documents: [], documentFiles: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [] }
+const blank: HubData = { accounts: [], memberships: [], documents: [], documentFiles: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [], predictedExpenses: [] }
 
 export async function loadHubData(): Promise<HubData> {
   if (!supabase) return blank
-  const tables = ['accounts', 'memberships', 'documents', 'document_files', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions', 'savings_history'] as const
-  const results = await Promise.all(tables.map((table) => supabase.from(table).select('*').order('created_at', { ascending: true })))
+  const tables = ['accounts', 'memberships', 'documents', 'document_files', 'notes', 'integrations', 'bank_connections', 'bank_account_candidates', 'bank_transactions', 'savings_history', 'predicted_expenses'] as const
+  const results = await Promise.all(tables.map((table) => {
+    const query = supabase.from(table).select('*').order('created_at', { ascending: true })
+    return table === 'predicted_expenses' ? query.is('deleted_at', null) : query
+  }))
   const failure = results.find((result) => result.error)
   if (failure?.error) throw failure.error
   return {
     accounts: results[0].data ?? [], memberships: results[1].data ?? [], documents: results[2].data ?? [], documentFiles: results[3].data ?? [],
     notes: results[4].data ?? [], integrations: results[5].data ?? [],
-    bankConnections: results[6].data ?? [], bankAccountCandidates: results[7].data ?? [], bankTransactions: results[8].data ?? [], savingsHistory: results[9].data ?? [],
+    bankConnections: results[6].data ?? [], bankAccountCandidates: results[7].data ?? [], bankTransactions: results[8].data ?? [], savingsHistory: results[9].data ?? [], predictedExpenses: results[10].data ?? [],
   } as HubData
+}
+
+export async function savePredictedExpense(input: PredictedExpenseInput, existing?: PredictedExpense): Promise<PredictedExpense> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  if (!validateExpense(input)) throw new Error('Invalid expense')
+  const payload = { ...input, title: input.title.trim(), category: input.category?.trim() || null, notes: input.notes?.trim() || null }
+  const query = existing
+    ? supabase.from('predicted_expenses').update(payload).eq('id', existing.id).eq('updated_at', existing.updated_at).is('deleted_at', null)
+    : supabase.from('predicted_expenses').insert(payload)
+  const { data, error } = await query.select('*').single()
+  if (error) throw error
+  return data as PredictedExpense
+}
+
+export async function changePredictedExpense(existing: PredictedExpense, action: 'complete' | 'reopen' | 'delete'): Promise<PredictedExpense> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const payload = action === 'delete' ? { deleted_at: new Date().toISOString() } : { status: action === 'complete' ? 'completed' : 'upcoming' }
+  const { data, error } = await supabase.from('predicted_expenses').update(payload)
+    .eq('id', existing.id).eq('updated_at', existing.updated_at).is('deleted_at', null).select('*').single()
+  if (error) throw error
+  return data as PredictedExpense
 }
 
 async function invokeBanking(name: string, body: Record<string, unknown>) {

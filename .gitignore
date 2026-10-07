@@ -11,3 +11,4 @@ Thumbs.db
 private-documents/
 test-results/
 playwright-report/
+supabase/.temp/

@@ -119,6 +119,23 @@ export interface SavingsSnapshot {
   created_at: string
 }
 
+export interface PredictedExpense {
+  id: string
+  title: string
+  amount: number | null
+  amount_status: 'confirmed' | 'estimated'
+  expected_date: string | null
+  category: string | null
+  notes: string | null
+  status: 'upcoming' | 'completed'
+  completed_at: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PredictedExpenseInput = Pick<PredictedExpense, 'title' | 'amount' | 'amount_status' | 'expected_date' | 'category' | 'notes' | 'status'>
+
 export interface HubData {
   accounts: Account[]
   memberships: Membership[]
@@ -130,4 +147,5 @@ export interface HubData {
   bankAccountCandidates: BankAccountCandidate[]
   bankTransactions: BankTransaction[]
   savingsHistory: SavingsSnapshot[]
+  predictedExpenses: PredictedExpense[]
 }
