@@ -68,7 +68,8 @@ function ExpenseEditor({ expense, onClose, onChanged, toast }: { expense: Predic
     event.preventDefault()
     if (busy) return
     const value = amount.trim().replace(',', '.')
-    const input: PredictedExpenseInput = { title, amount: value ? Number(value) : null, amount_status: amountStatus, expected_date: date || null, category: category || null, notes: notes || null, status }
+    const submittedDate = String(new FormData(event.currentTarget as HTMLFormElement).get('expected_date') || '')
+    const input: PredictedExpenseInput = { title, amount: value ? Number(value) : null, amount_status: amountStatus, expected_date: submittedDate || null, category: category || null, notes: notes || null, status }
     if ((value && !/^\d+(\.\d{1,2})?$/.test(value)) || !validateExpense(input)) { setError(t('expenses.invalid')); return }
     setBusy(true); setError('')
     try {
@@ -92,7 +93,7 @@ function ExpenseEditor({ expense, onClose, onChanged, toast }: { expense: Predic
         <label className="wide">{t('expenses.name')}<input name="title" required maxLength={160} value={title} onChange={event => setTitle(event.target.value)}/></label>
         <label>{t('expenses.amount')}<input name="amount" inputMode="decimal" required={amountStatus === 'confirmed'} autoComplete="off" maxLength={13} value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00"/></label>
         <label>{t('expenses.amountStatus')}<select name="amount_status" value={amountStatus} onChange={event => setAmountStatus(event.target.value as PredictedExpense['amount_status'])}><option value="estimated">{t('expenses.estimated')}</option><option value="confirmed">{t('expenses.confirmed')}</option></select></label>
-        <label>{t('expenses.date')}<input name="expected_date" type="date" min="1900-01-01" max="9999-12-31" value={date} onChange={event => setDate(event.target.value)}/></label>
+        <label>{t('expenses.date')}<input name="expected_date" type="date" min="1900-01-01" max="9999-12-31" value={date} onInput={event => setDate(event.currentTarget.value)} onChange={event => setDate(event.target.value)}/></label>
         <label>{t('expenses.status')}<select name="status" value={status} onChange={event => setStatus(event.target.value as PredictedExpense['status'])}><option value="upcoming">{t('expenses.upcoming')}</option><option value="completed">{t('expenses.completed')}</option></select></label>
         <label className="wide">{t('expenses.category')}<input name="category" maxLength={80} value={category} onChange={event => setCategory(event.target.value)}/></label>
         <label className="wide">{t('expenses.notes')}<textarea name="notes" rows={4} maxLength={3000} value={notes} onChange={event => setNotes(event.target.value)}/></label>
