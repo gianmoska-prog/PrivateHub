@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, ChartPie, RefreshCw, X } from 'lucide-react'
+import { ArrowUpRight, ChartPie, Pencil, RefreshCw, X } from 'lucide-react'
 import type { BankConnection, BankTransaction } from './types'
 import { usePreferences } from './preferences'
-import { bankDate, calendarMonth, categoryColors, summarizeSpending } from './spending'
-import type { SpendingCategory } from './spending'
+import { bankDate, calendarMonth, categoryColors, merchantPattern, resolvedCategory, spendingCategories, summarizeSpending } from './spending'
+import type { CategoryRule, SpendingCategory } from './spending'
+import { isSupabaseConfigured, loadCategoryRules, saveTransactionCategory } from './supabase'
 import { newestTransactionsFirst } from './transactions'
 import './spending.css'
 
@@ -15,9 +16,24 @@ function slicePath(start: number, end: number) {
   return `M ${point(start, 130)} A 130 130 0 0 1 ${point(middle, 130)} A 130 130 0 0 1 ${point(end, 130)} L ${point(end, 99)} A 99 99 0 0 0 ${point(middle, 99)} A 99 99 0 0 0 ${point(start, 99)} Z`
 }
 
-function CategoryDialog({ group, month, currency, connections, onClose }: { group: Group; month: string; currency: string; connections: BankConnection[]; onClose: () => void }) {
+type RuleProps = { rules: CategoryRule[]; onRulesChanged: (rules: CategoryRule[]) => void }
+
+function CategoryDialog({ group, month, currency, connections, onClose, rules, onRulesChanged }: { group: Group; month: string; currency: string; connections: BankConnection[]; onClose: () => void } & RuleProps) {
   const { t, locale } = usePreferences()
   const dialog = useRef<HTMLDialogElement>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [category, setCategory] = useState<SpendingCategory>('other')
+  const [remember, setRemember] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(false)
+  const save = async (transaction: BankTransaction) => {
+    setSaving(true); setError(false)
+    try {
+      const saved = await saveTransactionCategory(transaction, category, remember)
+      setEditing(null)
+      onRulesChanged(saved)
+    } catch { setError(true) } finally { setSaving(false) }
+  }
   const money = (amount: number) => new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount)
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
@@ -32,18 +48,27 @@ function CategoryDialog({ group, month, currency, connections, onClose }: { grou
   }}>
     <header><div><span className="eyebrow">{month}</span><h2 id="spending-dialog-title"><i style={{ background: categoryColors[group.category] }}/>{t(`analysis.${group.category}`)}</h2></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')} autoFocus><X size={21}/></button></header>
     <div className="spending-dialog-total"><strong>{money(group.cents / 100)}</strong><span>{t('analysis.transactions', { count: group.items.length })}</span></div>
+    {error && <p className="form-error" role="alert">{t('analysis.categoryFailed')}</p>}
     <div className="spending-detail-list">{newestTransactionsFirst(group.items).map(item => {
       const date = bankDate(item)
-      return <article key={item.id}><div><strong>{item.counterparty || item.description || t('bank.transaction')}</strong>{item.counterparty && item.description && <p>{item.description}</p>}<small>{date && new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(`${date}T12:00:00`))} · {connections.find(connection => connection.id === item.bank_connection_id)?.institution || t('analysis.account')} · <span className={item.status === 'pending' ? 'spending-pending' : ''}>{t(item.status === 'pending' ? 'analysis.pending' : 'analysis.booked')}</span></small></div><b>{money(Math.abs(Number(item.amount)))}</b></article>
+      const pattern = merchantPattern(item)
+      return <article key={item.id}><div><strong>{item.counterparty || item.description || t('bank.transaction')}</strong>{item.counterparty && item.description && <p>{item.description}</p>}<small>{date && new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(`${date}T12:00:00`))} · {connections.find(connection => connection.id === item.bank_connection_id)?.institution || t('analysis.account')} · <span className={item.status === 'pending' ? 'spending-pending' : ''}>{t(item.status === 'pending' ? 'analysis.pending' : 'analysis.booked')}</span></small>
+        {editing === item.id ? <form className="spending-category-editor" onSubmit={event => { event.preventDefault(); if (!saving) void save(item) }}>
+          <label>{t('analysis.chooseCategory')}<select value={category} onChange={event => setCategory(event.target.value as SpendingCategory)} disabled={saving}>{spendingCategories.map(value => <option key={value} value={value}>{t(`analysis.${value}`)}</option>)}</select></label>
+          <label className="spending-remember"><input type="checkbox" checked={remember && !!pattern} disabled={!pattern || saving} onChange={event => setRemember(event.target.checked)}/>{t('analysis.rememberCategory')}</label>
+          <small>{pattern ? t('analysis.pattern', { pattern }) : t('analysis.noPattern')}</small>
+          <div><button className="primary-button" disabled={saving}>{t(saving ? 'common.saving' : 'common.save')}</button><button type="button" className="expense-text-button" disabled={saving} onClick={() => setEditing(null)}>{t('common.close')}</button></div>
+        </form> : <button className="spending-edit-category" disabled={saving || !isSupabaseConfigured} onClick={() => { setEditing(item.id); setCategory(resolvedCategory(item, rules)); setRemember(true); setError(false) }}><Pencil size={13}/>{t('analysis.changeCategory')}</button>}
+      </div><b>{money(Math.abs(Number(item.amount)))}</b></article>
     })}</div>
   </dialog>
 }
 
-function MonthChart({ transactions, start, end, current, currency, includePending, amountsHidden, connections }: { transactions: BankTransaction[]; start: string; end: string; current: boolean; currency: string; includePending: boolean; amountsHidden: boolean; connections: BankConnection[] }) {
+function MonthChart({ transactions, start, end, current, currency, includePending, amountsHidden, connections, rules, onRulesChanged }: { transactions: BankTransaction[]; start: string; end: string; current: boolean; currency: string; includePending: boolean; amountsHidden: boolean; connections: BankConnection[] } & RuleProps) {
   const { t, locale } = usePreferences()
   const [hovered, setHovered] = useState<SpendingCategory | null>(null)
   const [selected, setSelected] = useState<SpendingCategory | null>(null)
-  const summary = useMemo(() => summarizeSpending(transactions, start, end, currency, includePending), [transactions, start, end, currency, includePending])
+  const summary = useMemo(() => summarizeSpending(transactions, start, end, currency, includePending, rules), [transactions, start, end, currency, includePending, rules])
   const month = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(`${start}T12:00:00`))
   const date = (value: string) => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${value}T12:00:00`))
   const money = (cents: number) => amountsHidden ? '••••••' : new Intl.NumberFormat(locale, { style: 'currency', currency }).format(cents / 100)
@@ -73,7 +98,7 @@ function MonthChart({ transactions, start, end, current, currency, includePendin
       </div>
     </div>
     <footer className="spending-month-footer"><span>{t('analysis.booked')} <b>{money(summary.bookedCents)}</b></span><span>{t('analysis.pending')} <b>{money(summary.pendingCents)}</b> <small>({summary.pendingCount})</small></span></footer>
-    {chosen && !amountsHidden && <CategoryDialog group={chosen} month={month} currency={currency} connections={connections} onClose={() => setSelected(null)}/>}
+    {chosen && !amountsHidden && <CategoryDialog group={chosen} month={month} currency={currency} connections={connections} rules={rules} onRulesChanged={onRulesChanged} onClose={() => setSelected(null)}/>}
   </section>
 }
 
@@ -84,14 +109,16 @@ export function SpendingAnalysis({ transactions, connections, today, amountsHidd
   const [pending, setPending] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
-  const reload = async () => { setBusy(true); setError(false); try { await refresh() } catch { setError(true) } finally { setBusy(false) } }
+  const [rules, setRules] = useState<CategoryRule[]>([])
+  const rulesChanged = (saved: CategoryRule[]) => setRules(existing => [...existing.filter(rule => !saved.some(value => rule.match_type === value.match_type && rule.match_key === value.match_key)), ...saved])
+  const reload = async () => { setBusy(true); setError(false); try { const [, loaded] = await Promise.all([refresh(), loadCategoryRules()]); setRules(loaded) } catch { setError(true) } finally { setBusy(false) } }
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
   useEffect(() => {
     let active = true
     const update = () => {
       if (document.visibilityState !== 'visible') return
-      refreshRef.current().then(() => { if (active) setError(false) }).catch(() => { if (active) setError(true) })
+      Promise.all([refreshRef.current(), loadCategoryRules()]).then(([, loaded]) => { if (active) { setRules(loaded); setError(false) } }).catch(() => { if (active) setError(true) })
     }
     update()
     window.addEventListener('focus', update)
@@ -111,8 +138,8 @@ export function SpendingAnalysis({ transactions, connections, today, amountsHidd
     <section className="spending-controls" aria-label={t('nav.analysis')}><label>{t('analysis.account')}<select value={account} onChange={event => setAccount(event.target.value)}><option value="all">{t('analysis.allBanks')}</option>{connections.map(connection => <option key={connection.id} value={connection.id}>{connection.institution}</option>)}</select></label><label>{t('analysis.currency')}<select value={currency} onChange={event => setCurrency(event.target.value)}>{currencies.map(value => <option key={value}>{value}</option>)}</select></label><label className="spending-pending-toggle"><input type="checkbox" checked={pending} onChange={event => setPending(event.target.checked)}/>{t('analysis.includePending')}</label></section>
     {error && <p className="form-error" role="alert">{t('app.connectFailed')}</p>}
     <div className="spending-sync">{sources.map(source => <span key={source.id}>{source.institution} · {source.last_successful_sync ? `${t('analysis.updated')}: ${new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(source.last_successful_sync))}` : t('analysis.noSync')}</span>)}</div>
-    <MonthChart transactions={filtered} connections={connections} start={current.start} end={today} current currency={currency} includePending={pending} amountsHidden={amountsHidden}/>
-    <MonthChart transactions={filtered} connections={connections} start={previous.start} end={previous.end} current={false} currency={currency} includePending={pending} amountsHidden={amountsHidden}/>
+    <MonthChart transactions={filtered} connections={connections} start={current.start} end={today} current currency={currency} includePending={pending} amountsHidden={amountsHidden} rules={rules} onRulesChanged={rulesChanged}/>
+    <MonthChart transactions={filtered} connections={connections} start={previous.start} end={previous.end} current={false} currency={currency} includePending={pending} amountsHidden={amountsHidden} rules={rules} onRulesChanged={rulesChanged}/>
     <aside className="spending-method"><p><strong>Salvadanaio</strong> · {t('analysis.savings')}</p><p>{t('analysis.source')}</p><p>{t('analysis.transferNote')}</p><p>{t('analysis.pendingNote')} {t('analysis.coverage')}</p>{undated > 0 && <p>{t('analysis.undated', { count: undated })}</p>}</aside>
   </div>
 }

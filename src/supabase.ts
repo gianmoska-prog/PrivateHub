@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import type { HubData, NoteRecord, PredictedExpense, PredictedExpenseInput } from './types'
 import { validateExpense } from './expenses'
+import { merchantPattern, spendingCategories } from './spending'
+import type { CategoryRule, SpendingCategory } from './spending'
+import type { BankTransaction } from './types'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
@@ -52,6 +55,26 @@ export async function loadHubData(): Promise<HubData> {
     notes: results[4].data ?? [], integrations: results[5].data ?? [],
     bankConnections: results[6].data ?? [], bankAccountCandidates: results[7].data ?? [], bankTransactions: results[8].data ?? [], savingsHistory: results[9].data ?? [], predictedExpenses: results[10].data ?? [],
   } as HubData
+}
+
+export async function loadCategoryRules(): Promise<CategoryRule[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.from('spending_category_rules').select('*').order('created_at')
+  if (error) throw error
+  return (data || []) as CategoryRule[]
+}
+
+export async function saveTransactionCategory(transaction: BankTransaction, category: SpendingCategory, remember: boolean): Promise<CategoryRule[]> {
+  if (!supabase || !spendingCategories.includes(category)) throw new Error('Invalid category')
+  const { data: auth, error: authError } = await supabase.auth.getUser()
+  if (authError || !auth.user) throw authError || new Error('Authentication required')
+  const owner_id = auth.user.id
+  const rows = [{ owner_id, match_type: 'transaction', match_key: transaction.id, category }]
+  const pattern = merchantPattern(transaction)
+  if (remember && pattern) rows.push({ owner_id, match_type: 'merchant', match_key: pattern, category })
+  const { data, error } = await supabase.from('spending_category_rules').upsert(rows, { onConflict: 'owner_id,match_type,match_key' }).select('*')
+  if (error) throw error
+  return data as CategoryRule[]
 }
 
 export async function savePredictedExpense(input: PredictedExpenseInput, existing?: PredictedExpense): Promise<PredictedExpense> {
