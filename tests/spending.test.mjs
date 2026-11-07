@@ -17,7 +17,7 @@ test('money held in Salvadanaio and withdrawn piecemeal never doubles spending o
   assert.equal(result.totalCents, 6999)
   assert.equal(result.count, 2)
   assert.equal(result.savingsMovementCount, 4)
-  assert.deepEqual(result.groups.map(group => group.category), ['transport', 'dining'])
+  assert.deepEqual(result.groups.map(group => group.category), ['transport', 'groceries'])
 })
 
 test('boundaries, pending status, currency and undated outgoings remain separate', () => {
@@ -33,7 +33,7 @@ test('boundaries, pending status, currency and undated outgoings remain separate
 
 test('fuel is distinguished from groceries and ambiguous merchants are not invented', () => {
   assert.equal(spendingCategory(tx('fuel', -30, 'CONAD DISTRIBUTORE BRACCIANO')), 'transport')
-  assert.equal(spendingCategory(tx('shop', -30, 'CONAD MANZIANA')), 'dining')
+  assert.equal(spendingCategory(tx('shop', -30, 'CONAD MANZIANA')), 'groceries')
   assert.equal(spendingCategory(tx('unknown', -30, 'PAYPAL *UNKNOWN')), 'other')
   assert.equal(spendingCategory(tx('cash', -30, 'PREL. SPORT. AUT Prelievo Cardless')), 'cash')
   assert.equal(spendingCategory(tx('transfer', -30, 'Bonifico Mario Rossi')), 'transfers')
