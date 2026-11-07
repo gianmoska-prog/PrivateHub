@@ -1,5 +1,6 @@
 export const spendingMessages: Record<string, Record<string, string>> = {
   en: {
+    'analysis.period': 'Period', 'analysis.year': 'Year {{year}}',
     'analysis.historyMonth': 'Historical month',
     'analysis.changeCategory': 'Change category', 'analysis.chooseCategory': 'Category', 'analysis.rememberCategory': 'Remember for similar transactions', 'analysis.pattern': 'Matches merchant: {{pattern}}. Applies to past and future matches; individual corrections take priority.', 'analysis.noPattern': 'No reliable merchant name found. Only this transaction will change.', 'analysis.categoryFailed': 'Could not save the category. Your previous categories are unchanged. Try again.',
     'nav.analysis': 'Spending analysis', 'analysis.subtitle': 'A clearer view of where your money goes.',
@@ -21,6 +22,7 @@ export const spendingMessages: Record<string, Record<string, string>> = {
     'analysis.fees': 'Bank fees & taxes', 'analysis.cash': 'Cash withdrawals', 'analysis.transfers': 'Other transfers · verify', 'analysis.other': 'Other',
   },
   it: {
+    'analysis.period': 'Periodo', 'analysis.year': 'Anno {{year}}',
     'analysis.historyMonth': 'Mese da visualizzare',
     'analysis.changeCategory': 'Cambia categoria', 'analysis.chooseCategory': 'Categoria', 'analysis.rememberCategory': 'Ricorda per movimenti simili', 'analysis.pattern': 'Commerciante riconosciuto: {{pattern}}. Si applica ai movimenti passati e futuri; le correzioni individuali hanno priorità.', 'analysis.noPattern': 'Nessun nome affidabile riconosciuto. Cambierà solo questo movimento.', 'analysis.categoryFailed': 'Impossibile salvare la categoria. Le categorie precedenti non sono cambiate. Riprova.',
     'nav.analysis': 'Analisi Spese', 'analysis.subtitle': 'Uno sguardo più chiaro a dove vanno i tuoi soldi.',
@@ -42,6 +44,7 @@ export const spendingMessages: Record<string, Record<string, string>> = {
     'analysis.fees': 'Commissioni e imposte', 'analysis.cash': 'Prelievi contanti', 'analysis.transfers': 'Altri trasferimenti · verifica', 'analysis.other': 'Altro',
   },
   es: {
+    'analysis.period': 'Periodo', 'analysis.year': 'Año {{year}}',
     'analysis.historyMonth': 'Mes a visualizar',
     'analysis.changeCategory': 'Cambiar categoría', 'analysis.chooseCategory': 'Categoría', 'analysis.rememberCategory': 'Recordar para movimientos similares', 'analysis.pattern': 'Comercio reconocido: {{pattern}}. Se aplica a coincidencias pasadas y futuras; las correcciones individuales tienen prioridad.', 'analysis.noPattern': 'No se reconoce un comercio fiable. Solo cambiará este movimiento.', 'analysis.categoryFailed': 'No se pudo guardar la categoría. Las categorías anteriores no han cambiado. Inténtalo de nuevo.',
     'nav.analysis': 'Análisis de gastos', 'analysis.subtitle': 'Una visión más clara de dónde va tu dinero.',

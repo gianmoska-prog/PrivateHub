@@ -64,19 +64,19 @@ function CategoryDialog({ group, month, currency, connections, onClose, rules, o
   </dialog>
 }
 
-function MonthChart({ transactions, start, end, current, currency, includePending, amountsHidden, connections, rules, onRulesChanged }: { transactions: BankTransaction[]; start: string; end: string; current: boolean; currency: string; includePending: boolean; amountsHidden: boolean; connections: BankConnection[] } & RuleProps) {
+function MonthChart({ transactions, start, end, current, currency, includePending, amountsHidden, connections, rules, onRulesChanged, periodTitle }: { transactions: BankTransaction[]; start: string; end: string; current: boolean; currency: string; includePending: boolean; amountsHidden: boolean; connections: BankConnection[]; periodTitle?: string } & RuleProps) {
   const { t, locale } = usePreferences()
   const [hovered, setHovered] = useState<SpendingCategory | null>(null)
   const [selected, setSelected] = useState<SpendingCategory | null>(null)
   const summary = useMemo(() => summarizeSpending(transactions, start, end, currency, includePending, rules), [transactions, start, end, currency, includePending, rules])
-  const month = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(`${start}T12:00:00`))
+  const month = periodTitle || new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(`${start}T12:00:00`))
   const date = (value: string) => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${value}T12:00:00`))
   const money = (cents: number) => amountsHidden ? '••••••' : new Intl.NumberFormat(locale, { style: 'currency', currency }).format(cents / 100)
   const active = summary.groups.find(group => group.category === hovered)
   const chosen = summary.groups.find(group => group.category === selected)
   let angle = -Math.PI / 2
   return <section className="panel spending-month">
-    <header className="spending-month-heading"><div><span className="eyebrow">{t(current ? 'analysis.current' : 'analysis.historyMonth')}</span><h2>{month}</h2><p>{date(start)} — {date(end)}</p></div><span className={`spending-period-tag ${current ? 'is-current' : ''}`}><span/>{includePending ? t('analysis.provisional') : t('analysis.booked')}</span></header>
+    <header className="spending-month-heading"><div><span className="eyebrow">{t(periodTitle ? 'analysis.period' : current ? 'analysis.current' : 'analysis.historyMonth')}</span><h2>{month}</h2><p>{date(start)} — {date(end)}</p></div><span className={`spending-period-tag ${current ? 'is-current' : ''}`}><span/>{includePending ? t('analysis.provisional') : t('analysis.booked')}</span></header>
     <div className="spending-visual-layout">
       <div className="spending-chart-wrap">
         {amountsHidden ? <div className="spending-ring-placeholder"><ChartPie size={32}/><p>{t('analysis.hidden')}</p></div> : !summary.totalCents ? <div className="spending-ring-placeholder"><ChartPie size={32}/><strong>{t('analysis.empty')}</strong><p>{t('analysis.emptyHint')}</p></div> : <>
@@ -108,6 +108,7 @@ export function SpendingAnalysis({ transactions, connections, today, amountsHidd
   const [selectedCurrency, setCurrency] = useState('EUR')
   const [pending, setPending] = useState(false)
   const [historyOffset, setHistoryOffset] = useState(-1)
+  const [topPeriod, setTopPeriod] = useState('current')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [rules, setRules] = useState<CategoryRule[]>([])
@@ -132,6 +133,11 @@ export function SpendingAnalysis({ transactions, connections, today, amountsHidd
   const currency = currencies.includes(selectedCurrency) ? selectedCurrency : currencies[0]
   const current = calendarMonth(today)
   const previous = calendarMonth(today, historyOffset)
+  const monthCount = Math.max(0, (Number(today.slice(0,4))-2026)*12 + Number(today.slice(5,7))-7)
+  const monthOffsets = Array.from({length: monthCount+1}, (_, index) => -index)
+  const year = topPeriod === 'current' ? null : Number(topPeriod)
+  const topStart = year ? `${year}-01-01` : current.start
+  const topEnd = year ? (today < `${year}-12-31` ? today : `${year}-12-31`) : today
   const undated = summarizeSpending(filtered, current.start, current.end, currency, pending).undatedCount
   const sources = connections.filter(connection => account === 'all' || account === connection.id)
   return <div className="spending-analysis">
@@ -139,9 +145,10 @@ export function SpendingAnalysis({ transactions, connections, today, amountsHidd
     <section className="spending-controls" aria-label={t('nav.analysis')}><label>{t('analysis.account')}<select value={account} onChange={event => setAccount(event.target.value)}><option value="all">{t('analysis.allBanks')}</option>{connections.map(connection => <option key={connection.id} value={connection.id}>{connection.institution}</option>)}</select></label><label>{t('analysis.currency')}<select value={currency} onChange={event => setCurrency(event.target.value)}>{currencies.map(value => <option key={value}>{value}</option>)}</select></label><label className="spending-pending-toggle"><input type="checkbox" checked={pending} onChange={event => setPending(event.target.checked)}/>{t('analysis.includePending')}</label></section>
     {error && <p className="form-error" role="alert">{t('app.connectFailed')}</p>}
     <div className="spending-sync">{sources.map(source => <span key={source.id}>{source.institution} · {source.last_successful_sync ? `${t('analysis.updated')}: ${new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(source.last_successful_sync))}` : t('analysis.noSync')}</span>)}</div>
-    <MonthChart transactions={filtered} connections={connections} start={current.start} end={today} current currency={currency} includePending={pending} amountsHidden={amountsHidden} rules={rules} onRulesChanged={rulesChanged}/>
+    <div className="spending-controls"><label>{t('analysis.period')}<select value={topPeriod} onChange={event => setTopPeriod(event.target.value)}><option value="current">{t('analysis.current')}</option>{Array.from({length: Math.max(1,Number(today.slice(0,4))-2025)},(_,i)=>2026+i).map(value=><option key={value} value={value}>{t('analysis.year', {year:value})}</option>)}</select></label></div>
+    <MonthChart key={topPeriod} periodTitle={year ? t('analysis.year', {year}) : undefined} transactions={filtered} connections={connections} start={topStart} end={topEnd} current currency={currency} includePending={pending} amountsHidden={amountsHidden} rules={rules} onRulesChanged={rulesChanged}/>
     <section className="spending-history">
-      <div className="spending-controls"><label>{t('analysis.historyMonth')}<select value={historyOffset} onChange={event => setHistoryOffset(Number(event.target.value))}>{[-1, -2].map(offset => <option key={offset} value={offset}>{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(`${calendarMonth(today, offset).start}T12:00:00`))}</option>)}</select></label></div>
+      <div className="spending-controls"><label>{t('analysis.historyMonth')}<select value={historyOffset} onChange={event => setHistoryOffset(Number(event.target.value))}>{monthOffsets.map(offset => <option key={offset} value={offset}>{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(`${calendarMonth(today, offset).start}T12:00:00`))}</option>)}</select></label></div>
       <MonthChart key={previous.start} transactions={filtered} connections={connections} start={previous.start} end={previous.end} current={false} currency={currency} includePending={pending} amountsHidden={amountsHidden} rules={rules} onRulesChanged={rulesChanged}/>
     </section>
     <aside className="spending-method"><p><strong>Salvadanaio</strong> · {t('analysis.savings')}</p><p>{t('analysis.source')}</p><p>{t('analysis.transferNote')}</p><p>{t('analysis.pendingNote')} {t('analysis.coverage')}</p>{undated > 0 && <p>{t('analysis.undated', { count: undated })}</p>}</aside>

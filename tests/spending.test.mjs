@@ -44,3 +44,11 @@ test('analysis translations are complete in every supported language', () => {
   const keys = Object.keys(spendingMessages.en).sort()
   for (const language of ['it', 'es']) assert.deepEqual(Object.keys(spendingMessages[language]).sort(), keys)
 })
+
+test('year view equals available calendar-month totals, excluding other years and savings', () => {
+  const items = [tx('july', -12.34, 'CONAD', '2026-07-31'), tx('august', -20, 'LIDL', '2026-08-01'), tx('september', -30, 'Trainline', '2026-09-30'), tx('november', -40, 'Amazon', '2026-11-06'), tx('savings', -2000, 'Salvadanaio', '2026-11-06'), tx('next-year', -99, 'CONAD', '2027-01-01')]
+  const year = summarizeSpending(items, '2026-01-01', '2026-11-07', 'EUR', false)
+  const months = [0,-1,-2,-3,-4].map(offset => calendarMonth('2026-11-07', offset))
+  assert.equal(year.totalCents, months.reduce((sum, month) => sum + summarizeSpending(items, month.start, month.end, 'EUR', false).totalCents, 0))
+  assert.equal(year.totalCents, 10234)
+})
