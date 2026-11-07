@@ -1,5 +1,6 @@
 export const spendingMessages: Record<string, Record<string, string>> = {
   en: {
+    'analysis.exclude': 'Exclude from analysis', 'analysis.restore': 'Restore · choose category', 'analysis.excludedTitle': 'Excluded from analysis', 'analysis.excludedList': 'Excluded transactions ({{count}})',
     'analysis.internal_transfer': 'Between my accounts · excluded',
     'analysis.period': 'Period', 'analysis.year': 'Year {{year}}',
     'analysis.historyMonth': 'Historical month',
@@ -23,6 +24,7 @@ export const spendingMessages: Record<string, Record<string, string>> = {
     'analysis.fees': 'Bank fees & taxes', 'analysis.cash': 'Cash withdrawals', 'analysis.transfers': 'Other transfers · verify', 'analysis.other': 'Other',
   },
   it: {
+    'analysis.exclude': 'Escludi dall’analisi', 'analysis.restore': 'Ripristina · scegli categoria', 'analysis.excludedTitle': 'Esclusi dall’analisi', 'analysis.excludedList': 'Movimenti esclusi ({{count}})',
     'analysis.internal_transfer': 'Tra i miei conti · escluso',
     'analysis.period': 'Periodo', 'analysis.year': 'Anno {{year}}',
     'analysis.historyMonth': 'Mese da visualizzare',
@@ -46,6 +48,7 @@ export const spendingMessages: Record<string, Record<string, string>> = {
     'analysis.fees': 'Commissioni e imposte', 'analysis.cash': 'Prelievi contanti', 'analysis.transfers': 'Altri trasferimenti · verifica', 'analysis.other': 'Altro',
   },
   es: {
+    'analysis.exclude': 'Excluir del análisis', 'analysis.restore': 'Restaurar · elegir categoría', 'analysis.excludedTitle': 'Excluidos del análisis', 'analysis.excludedList': 'Movimientos excluidos ({{count}})',
     'analysis.internal_transfer': 'Entre mis cuentas · excluido',
     'analysis.period': 'Periodo', 'analysis.year': 'Año {{year}}',
     'analysis.historyMonth': 'Mes a visualizar',

@@ -48,3 +48,11 @@ test('confirmed own-account transfers are excluded from monthly and annual spend
   }
   assert.equal(items.length,2)
 })
+
+test('excluding one transaction leaves similar purchases included and restoring its category restores totals', () => {
+  const items = [tx('one', 'CONAD', -20), tx('two', 'CONAD', -30)]
+  const excluded = [rule('transaction','one','internal_transfer')]
+  assert.equal(summarizeSpending(items,'2026-11-01','2026-11-30','EUR',false,excluded).totalCents,3000)
+  const restored = [rule('transaction','one','groceries')]
+  assert.equal(summarizeSpending(items,'2026-11-01','2026-11-30','EUR',false,restored).totalCents,5000)
+})

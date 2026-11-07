@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, ChartPie, Pencil, RefreshCw, X } from 'lucide-react'
 import type { BankConnection, BankTransaction } from './types'
 import { usePreferences } from './preferences'
-import { bankDate, calendarMonth, categoryColors, merchantPattern, resolvedCategory, spendingCategories, summarizeSpending } from './spending'
+import { bankDate, calendarMonth, categoryColors, isSavingsMovement, spendingCategory, merchantPattern, resolvedCategory, spendingCategories, summarizeSpending } from './spending'
 import type { CategoryRule, SpendingCategory } from './spending'
 import { isSupabaseConfigured, loadCategoryRules, saveTransactionCategory } from './supabase'
 import { newestTransactionsFirst } from './transactions'
@@ -26,10 +26,10 @@ function CategoryDialog({ group, month, currency, connections, onClose, rules, o
   const [remember, setRemember] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
-  const save = async (transaction: BankTransaction) => {
+  const save = async (transaction: BankTransaction, exclude = false) => {
     setSaving(true); setError(false)
     try {
-      const saved = await saveTransactionCategory(transaction, category, remember)
+      const saved = await saveTransactionCategory(transaction, exclude ? 'internal_transfer' : category, exclude ? false : remember)
       setEditing(null)
       onRulesChanged(saved)
     } catch { setError(true) } finally { setSaving(false) }
@@ -46,7 +46,7 @@ function CategoryDialog({ group, month, currency, connections, onClose, rules, o
     const rect = event.currentTarget.getBoundingClientRect()
     if (event.target === event.currentTarget && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) onClose()
   }}>
-    <header><div><span className="eyebrow">{month}</span><h2 id="spending-dialog-title"><i style={{ background: categoryColors[group.category] }}/>{t(`analysis.${group.category}`)}</h2></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')} autoFocus><X size={21}/></button></header>
+    <header><div><span className="eyebrow">{month}</span><h2 id="spending-dialog-title"><i style={{ background: categoryColors[group.category] }}/>{t(group.category === 'internal_transfer' ? 'analysis.excludedTitle' : `analysis.${group.category}`)}</h2></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')} autoFocus><X size={21}/></button></header>
     <div className="spending-dialog-total"><strong>{money(group.cents / 100)}</strong><span>{t('analysis.transactions', { count: group.items.length })}</span></div>
     {error && <p className="form-error" role="alert">{t('analysis.categoryFailed')}</p>}
     <div className="spending-detail-list">{newestTransactionsFirst(group.items).map(item => {
@@ -57,8 +57,8 @@ function CategoryDialog({ group, month, currency, connections, onClose, rules, o
           <label>{t('analysis.chooseCategory')}<select value={category} onChange={event => setCategory(event.target.value as SpendingCategory)} disabled={saving}>{spendingCategories.map(value => <option key={value} value={value}>{t(`analysis.${value}`)}</option>)}</select></label>
           <label className="spending-remember"><input type="checkbox" checked={remember && !!pattern} disabled={!pattern || saving} onChange={event => setRemember(event.target.checked)}/>{t('analysis.rememberCategory')}</label>
           <small>{pattern ? t('analysis.pattern', { pattern }) : t('analysis.noPattern')}</small>
-          <div><button className="primary-button" disabled={saving}>{t(saving ? 'common.saving' : 'common.save')}</button><button type="button" className="expense-text-button" disabled={saving} onClick={() => setEditing(null)}>{t('common.close')}</button></div>
-        </form> : <button className="spending-edit-category" disabled={saving || !isSupabaseConfigured} onClick={() => { setEditing(item.id); setCategory(resolvedCategory(item, rules)); setRemember(true); setError(false) }}><Pencil size={13}/>{t('analysis.changeCategory')}</button>}
+          <div><button type="button" className="expense-text-button" disabled={saving} onClick={() => void save(item, true)}>{t('analysis.exclude')}</button><button className="primary-button" disabled={saving}>{t(saving ? 'common.saving' : 'common.save')}</button><button type="button" className="expense-text-button" disabled={saving} onClick={() => setEditing(null)}>{t('common.close')}</button></div>
+        </form> : <button className="spending-edit-category" disabled={saving || !isSupabaseConfigured} onClick={() => { setEditing(item.id); setCategory(group.category === 'internal_transfer' ? spendingCategory(item) : resolvedCategory(item, rules)); setRemember(group.category !== 'internal_transfer'); setError(false) }}><Pencil size={13}/>{t(group.category === 'internal_transfer' ? 'analysis.restore' : 'analysis.changeCategory')}</button>}
       </div><b>{money(Math.abs(Number(item.amount)))}</b></article>
     })}</div>
   </dialog>
@@ -73,7 +73,9 @@ function MonthChart({ transactions, start, end, current, currency, includePendin
   const date = (value: string) => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${value}T12:00:00`))
   const money = (cents: number) => amountsHidden ? '••••••' : new Intl.NumberFormat(locale, { style: 'currency', currency }).format(cents / 100)
   const active = summary.groups.find(group => group.category === hovered)
-  const chosen = summary.groups.find(group => group.category === selected)
+  const excludedItems = transactions.filter(item => { const date = bankDate(item); return date && date >= start && date <= end && item.currency === currency && Number(item.amount) < 0 && !isSavingsMovement(item) && resolvedCategory(item, rules) === 'internal_transfer' })
+  const excluded: Group = { category: 'internal_transfer', items: excludedItems, cents: excludedItems.reduce((sum,item) => sum + Math.round(Math.abs(Number(item.amount))*100),0) }
+  const chosen = selected === 'internal_transfer' && excludedItems.length ? excluded : summary.groups.find(group => group.category === selected)
   let angle = -Math.PI / 2
   return <section className="panel spending-month">
     <header className="spending-month-heading"><div><span className="eyebrow">{t(periodTitle ? 'analysis.period' : current ? 'analysis.current' : 'analysis.historyMonth')}</span><h2>{month}</h2><p>{date(start)} — {date(end)}</p></div><span className={`spending-period-tag ${current ? 'is-current' : ''}`}><span/>{includePending ? t('analysis.provisional') : t('analysis.booked')}</span></header>
@@ -98,6 +100,7 @@ function MonthChart({ transactions, start, end, current, currency, includePendin
       </div>
     </div>
     <footer className="spending-month-footer"><span>{t('analysis.booked')} <b>{money(summary.bookedCents)}</b></span><span>{t('analysis.pending')} <b>{money(summary.pendingCents)}</b> <small>({summary.pendingCount})</small></span></footer>
+    {excludedItems.length > 0 && <button className="spending-edit-category" disabled={amountsHidden} onClick={() => setSelected('internal_transfer')}>{t('analysis.excludedList', {count:excludedItems.length})}</button>}
     {chosen && !amountsHidden && <CategoryDialog group={chosen} month={month} currency={currency} connections={connections} rules={rules} onRulesChanged={onRulesChanged} onClose={() => setSelected(null)}/>}
   </section>
 }
