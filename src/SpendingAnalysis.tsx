@@ -76,7 +76,7 @@ function MonthChart({ transactions, start, end, current, currency, includePendin
   const chosen = summary.groups.find(group => group.category === selected)
   let angle = -Math.PI / 2
   return <section className="panel spending-month">
-    <header className="spending-month-heading"><div><span className="eyebrow">{t(current ? 'analysis.current' : 'analysis.previous')}</span><h2>{month}</h2><p>{date(start)} — {date(end)}</p></div><span className={`spending-period-tag ${current ? 'is-current' : ''}`}><span/>{includePending ? t('analysis.provisional') : t('analysis.booked')}</span></header>
+    <header className="spending-month-heading"><div><span className="eyebrow">{t(current ? 'analysis.current' : 'analysis.historyMonth')}</span><h2>{month}</h2><p>{date(start)} — {date(end)}</p></div><span className={`spending-period-tag ${current ? 'is-current' : ''}`}><span/>{includePending ? t('analysis.provisional') : t('analysis.booked')}</span></header>
     <div className="spending-visual-layout">
       <div className="spending-chart-wrap">
         {amountsHidden ? <div className="spending-ring-placeholder"><ChartPie size={32}/><p>{t('analysis.hidden')}</p></div> : !summary.totalCents ? <div className="spending-ring-placeholder"><ChartPie size={32}/><strong>{t('analysis.empty')}</strong><p>{t('analysis.emptyHint')}</p></div> : <>
