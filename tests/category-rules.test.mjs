@@ -36,3 +36,15 @@ test('category corrections cannot turn savings transfers into spending', () => {
   const item = tx('saving', 'MOVIM. SALVADANAIO Accantonamento', -2000)
   assert.equal(summarizeSpending([item], '2026-11-01', '2026-11-30', 'EUR', false, [rule('transaction', 'saving', 'shopping')]).totalCents, 0)
 })
+
+test('confirmed own-account transfers are excluded from monthly and annual spending without removing transactions', () => {
+  const items = [tx('internal', 'Sent from Revolut', -3017.19), tx('purchase', 'CONAD', -25)]
+  items.forEach(item => { item.booking_date = '2026-07-11' })
+  const rules = [rule('transaction', 'internal', 'internal_transfer')]
+  for (const [start,end] of [['2026-07-01','2026-07-31'],['2026-01-01','2026-12-31']]) {
+    const result = summarizeSpending(items,start,end,'EUR',false,rules)
+    assert.equal(result.totalCents,2500)
+    assert.equal(result.count,1)
+  }
+  assert.equal(items.length,2)
+})

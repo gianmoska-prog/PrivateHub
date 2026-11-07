@@ -1,6 +1,6 @@
 import type { BankTransaction } from './types'
 
-export const spendingCategories = ['groceries', 'dining', 'transport', 'shopping', 'bills', 'health', 'sport', 'services', 'fees', 'cash', 'transfers', 'other'] as const
+export const spendingCategories = ['groceries', 'dining', 'transport', 'shopping', 'bills', 'health', 'sport', 'services', 'fees', 'cash', 'transfers', 'internal_transfer', 'other'] as const
 export type SpendingCategory = typeof spendingCategories[number]
 export type CategoryRule = { owner_id: string; match_type: 'transaction' | 'merchant'; match_key: string; category: SpendingCategory; created_at: string }
 
@@ -25,7 +25,7 @@ export function resolvedCategory(transaction: BankTransaction, rules: CategoryRu
   return categories.size === 1 ? learned[0].category : spendingCategory(transaction)
 }
 export const categoryColors: Record<SpendingCategory, string> = {
-  services: '#c58eae', groceries: '#399c88', dining: '#e3a15b', transport: '#618ee0', shopping: '#aa82cf',
+  internal_transfer: '#929ca8', services: '#c58eae', groceries: '#399c88', dining: '#e3a15b', transport: '#618ee0', shopping: '#aa82cf',
   bills: '#5da9bd', health: '#d97d98', sport: '#8aa35a', fees: '#b79666',
   cash: '#7c8baf', transfers: '#bc8980', other: '#929ca8',
 }
@@ -69,7 +69,7 @@ export function summarizeSpending(transactions: BankTransaction[], start: string
     const date = bankDate(item)
     return date && date >= start && date <= end && item.currency === currency && Number.isFinite(Number(item.amount))
   })
-  const outgoing = period.filter(item => Number(item.amount) < 0 && !isSavingsMovement(item))
+  const outgoing = period.filter(item => Number(item.amount) < 0 && !isSavingsMovement(item) && resolvedCategory(item, rules) !== 'internal_transfer')
   const booked = outgoing.filter(item => item.status === 'booked')
   const pending = outgoing.filter(item => item.status === 'pending')
   const included = includePending ? outgoing : booked
