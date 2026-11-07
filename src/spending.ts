@@ -45,7 +45,7 @@ export function spendingCategory(transaction: BankTransaction): SpendingCategory
   const text = `${transaction.counterparty || ''} ${transaction.description}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   if (/prelievo|prel\.?\s*(sport|atm)|cash withdrawal/.test(text)) return 'cash'
   if (/conad distributore|carburant|benzina|\b(q8|eni|esso|tamoil|ip station)\b|easypark|trainline|trenitalia|italo treno|autostrade|telepass|\b(uber|taxi|atac)\b/.test(text)) return 'transport'
-  if (/\b(conad|eurospin|lidl|aldi|carrefour|esselunga|coop|supermercato|ipertriscount|md market|penny market)\b/.test(text)) return 'groceries'
+  if (/\b(conad|eurospin|lidl|aldi|carrefour|esselunga|coop|supermercato|ipertriscount|md market|penny market)\b/.test(text)) return 'dining'
   if (/ristorant|pizzeria|\bpizza\b|\bbar\b|caffe|coffee|mcdonald|burger king|deliveroo|just eat|glovo|trattoria|sushi/.test(text)) return 'dining'
   if (/farmacia|pharmacy|dentist|dentale|medic|ospedale|clinica/.test(text)) return 'health'
   if (/tennis|piscina|nuoto|swimming|palestra|fitness/.test(text)) return 'sport'

@@ -14,7 +14,7 @@ test('merchant matching removes bank wrappers, variable dates, cards and referen
 })
 
 test('correction moves a transaction out of Other and updates percentages without changing total', () => {
-  const a = tx('a', 'Unrecognised merchant'), b = tx('b', 'CONAD', -30)
+  const a = tx('a', 'Unrecognised merchant'), b = tx('b', 'Trainline', -30)
   const rules = [rule('transaction', 'a', 'dining')]
   const before = summarizeSpending([a, b], '2026-11-01', '2026-11-30', 'EUR', false)
   const after = summarizeSpending([a, b], '2026-11-01', '2026-11-30', 'EUR', false, rules)
