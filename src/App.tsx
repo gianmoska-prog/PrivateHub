@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  Banknote, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, EyeOff, Share2, FileText,
+  Banknote, CalendarDays, ChartPie, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, EyeOff, Share2, FileText,
   FolderClosed, Home, LockKeyhole, LogOut, Menu, Moon, NotebookPen, Pencil, Plane, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Sparkles, Star, Sun, Target, TrendingUp, Trash2, Upload, WalletCards, WifiOff, X,
 } from 'lucide-react'
@@ -10,15 +10,18 @@ import { prepareDocumentShare, createAccount, createMembership, deleteNote, down
 import type { Account, BankAccountCandidate, BankConnection, BankTransaction, DocumentFile, DocumentRecord, HubData, Membership, NoteRecord, PredictedExpense, SavingsSnapshot } from './types'
 import { usePreferences } from './preferences'
 import { newestTransactionsFirst } from './transactions'
+import { SpendingAnalysis } from './SpendingAnalysis'
+import { isSavingsMovement } from './spending'
 import { FutureExpenseReview, FutureExpensesOverview, PredictedExpensesView, useLocalToday } from './PredictedExpenses'
 
-type Page = 'overview' | 'accounts' | 'expenses' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
+type Page = 'overview' | 'accounts' | 'analysis' | 'expenses' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
 type Selected = { kind: 'account'; item: Account } | { kind: 'membership'; item: Membership } | null
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`
 
 const NAV: { id: Page; key: string; icon: typeof Home }[] = [
   { id: 'overview', key: 'nav.overview', icon: Home },
   { id: 'accounts', key: 'nav.accounts', icon: Banknote },
+  { id: 'analysis', key: 'nav.analysis', icon: ChartPie },
   { id: 'expenses', key: 'nav.expenses', icon: CalendarDays },
   { id: 'memberships', key: 'nav.memberships', icon: Star },
   { id: 'travel', key: 'nav.travel', icon: Plane },
@@ -187,14 +190,13 @@ function SavingsProgressPanel({ account, history, transactions, amountsHidden, e
     const value = item.booking_date || item.transaction_date
     return value && new Date(`${value}T12:00:00Z`) >= cutoff
   }) : []
-  const isSavingsTransfer = (item: BankTransaction) => `${item.counterparty || ''} ${item.description}`.toLowerCase().includes('salvadanaio')
-  const savingsTransfers = recent.filter((item) => Number(item.amount) < 0 && isSavingsTransfer(item))
+  const isSavingsTransfer = isSavingsMovement
+  const savingsTransfers = recent.filter(isSavingsTransfer)
   const spendingMovements = recent.filter((item) => !isSavingsTransfer(item))
   const outgoings = spendingMovements.filter((item) => Number(item.amount) < 0)
   const incoming = spendingMovements.filter((item) => Number(item.amount) > 0)
   const spent = outgoings.reduce((sum, item) => sum + Math.abs(Number(item.amount)), 0)
   const received = incoming.reduce((sum, item) => sum + Number(item.amount), 0)
-  const transferredToSavings = savingsTransfers.reduce((sum, item) => sum + Math.abs(Number(item.amount)), 0)
   const largest = outgoings.reduce<BankTransaction | null>((winner, item) => !winner || Number(item.amount) < Number(winner.amount) ? item : winner, null)
   const repeated = Array.from(outgoings.reduce((counts, item) => {
     const label = (item.counterparty || item.description).trim().replace(/\s+/g, ' ')
@@ -204,7 +206,7 @@ function SavingsProgressPanel({ account, history, transactions, amountsHidden, e
   const progressMin = Math.min(100, Math.max(0, ((current || 0) / 8000) * 100))
   const progressMax = Math.min(100, Math.max(0, ((current || 0) / 12000) * 100))
   const review = recent.length
-    ? `${t('savings.reviewMovements', { count: spendingMovements.length, spent: money(spent), received: money(received) })} ${savingsTransfers.length ? t('savings.reviewTransfers', { count: savingsTransfers.length, amount: money(transferredToSavings) }) : ''} ${largest ? t('savings.reviewLargest', { amount: money(Math.abs(Number(largest.amount))), name: largest.counterparty || largest.description }) : ''} ${repeated ? t('savings.reviewRecurring', { name: repeated[0], count: repeated[1] }) : t('savings.reviewNoRecurring')}`
+    ? `${t('savings.reviewMovements', { count: spendingMovements.length, spent: money(spent), received: money(received) })} ${savingsTransfers.length ? t('savings.reviewTransfers', { count: savingsTransfers.length }) : ''} ${largest ? t('savings.reviewLargest', { amount: money(Math.abs(Number(largest.amount))), name: largest.counterparty || largest.description }) : ''} ${repeated ? t('savings.reviewRecurring', { name: repeated[0], count: repeated[1] }) : t('savings.reviewNoRecurring')}`
     : t('savings.reviewEmpty')
   const momentum = current == null
     ? t('savings.momentumStart')
@@ -598,7 +600,7 @@ function App() {
         <button className="icon-button mobile-menu" onClick={() => setDrawer(true)} aria-label={t('app.openNavigation')}><Menu size={22}/></button>
         <label className="search-field"><Search size={17}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('app.search')}/><kbd>⌘K</kbd></label>
         <div className="topbar-fill"/>
-        {(page === 'overview' || page === 'expenses') && <button className="icon-button" aria-label={t(amountsHidden ? "privacy.show" : "privacy.hide")} title={t(amountsHidden ? "privacy.show" : "privacy.hide")} aria-pressed={!amountsHidden} onClick={() => setAmountsHidden(value => !value)}>{amountsHidden ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}
+        {(page === 'overview' || page === 'expenses' || page === 'analysis') && <button className="icon-button" aria-label={t(amountsHidden ? "privacy.show" : "privacy.hide")} title={t(amountsHidden ? "privacy.show" : "privacy.hide")} aria-pressed={!amountsHidden} onClick={() => setAmountsHidden(value => !value)}>{amountsHidden ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}
         <span className="date"><CalendarDays size={17}/>{new Intl.DateTimeFormat(locale,{weekday:'long',month:'short',day:'numeric'}).format(new Date())}</span>
         <button className="profile" onClick={preview ? () => toast(t('app.previewMode')) : signOut}><span>GM</span><b>Gianluca<small>{preview ? t('app.preview') : t('app.personal')}</small></b>{preview ? <ShieldCheck size={16}/> : <LogOut size={16}/>}</button>
       </header>
@@ -620,6 +622,7 @@ function App() {
         {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.payslipsSection')}</h2><p>{t('documents.payslipsText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Payslips').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.miscellaneousSection')}</h2><p>{t('documents.miscellaneousText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Miscellaneous').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div></>}
         {page === 'notes' && <NotesView notes={filtered.notes} preview={preview} refresh={refresh} toast={toast}/>} 
         {page === 'expenses' && <PredictedExpensesView expenses={data.predictedExpenses} today={today} amountsHidden={amountsHidden} query={query} preview={preview} onChanged={expenseChanged} toast={toast}/>}
+        {page === 'analysis' && <SpendingAnalysis transactions={data.bankTransactions} connections={data.bankConnections} today={today} amountsHidden={amountsHidden} refresh={refresh}/>}
         {page === 'settings' && <SettingsView preview={preview} integrationStatus={integrationStatus} bankConnections={data.bankConnections}/>}
       </div>
     </main>
