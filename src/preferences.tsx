@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { expenseMessages } from './expenseMessages'
 import { spendingMessages } from './spendingMessages'
+import { accessMessages } from './accessMessages'
 
 export type Theme = 'light' | 'dark'
 export type Language = 'en' | 'it' | 'es'
@@ -149,7 +150,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<PreferencesValue>(() => {
     const t = (key: string, vars: Record<string, string | number> = {}) => {
-      const template = spendingMessages[language][key] ?? expenseMessages[language][key] ?? dictionaries[language][key] ?? dictionaries.en[key] ?? key
+      const template = accessMessages[language][key] ?? spendingMessages[language][key] ?? expenseMessages[language][key] ?? dictionaries[language][key] ?? dictionaries.en[key] ?? key
       return Object.entries(vars).reduce((text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)), template)
     }
     return {

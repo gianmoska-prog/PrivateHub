@@ -13,6 +13,8 @@ import { newestTransactionsFirst } from './transactions'
 import { SpendingAnalysis } from './SpendingAnalysis'
 import { isSavingsMovement } from './spending'
 import { FutureExpenseReview, FutureExpensesOverview, PredictedExpensesView, useLocalToday } from './PredictedExpenses'
+import { LanguagePicker, PrivateSession } from './PrivateAccess'
+import type { UserProfile } from './PrivateAccess'
 
 type Page = 'overview' | 'accounts' | 'analysis' | 'expenses' | 'memberships' | 'travel' | 'documents' | 'notes' | 'settings'
 type Selected = { kind: 'account'; item: Account } | { kind: 'membership'; item: Membership } | null
@@ -84,7 +86,7 @@ function AuthGate() {
     const redirectUrl = new URL(import.meta.env.BASE_URL, window.location.origin).href
     const { error: authError } = method === 'password'
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } })
+      : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl, shouldCreateUser: false } })
     setBusy(false)
     if (authError) setError(method === 'password' ? t('auth.invalidCredentials') : (authError.status === 429 ? t('auth.rateLimited') : t('auth.unableSend')))
     else if (method === 'link') setSent(true)
@@ -95,9 +97,11 @@ function AuthGate() {
       <Brand />
       <div className="auth-scene"><img src={assetUrl('assets/lake-scene.svg')} alt="" /></div>
       <div className="auth-copy">
+        <LanguagePicker/>
         <span className="eyebrow">{t('auth.privateAccess')}</span>
         <h1>{titleLine1}<br/>{titleLine2}</h1>
         <p>{t('auth.description')}</p>
+        <p className="auth-device-note">{t('pin.newDevice')}</p>
         {sent ? <div className="success-message"><Check size={18}/><span><strong>{t('auth.checkInbox')}</strong><small>{t('auth.linkReady')}</small></span></div> :
           <form onSubmit={submit} className="auth-form">
             <label htmlFor="email">{t('auth.email')}</label>
@@ -155,7 +159,7 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Plane; title: st
   return <div className="empty-state"><span><Icon size={27}/></span><h2>{title}</h2><p>{text}</p></div>
 }
 
-function SavingsProgressPanel({ account, history, transactions, amountsHidden, expenses, today, onExpenses }: { account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[]; amountsHidden: boolean; expenses: PredictedExpense[]; today: string; onExpenses: () => void }) {
+function SavingsProgressPanel({ account, history, transactions, amountsHidden, expenses, today, onExpenses, showGoal = true }: { showGoal?: boolean; account?: Account; history: SavingsSnapshot[]; transactions: BankTransaction[]; amountsHidden: boolean; expenses: PredictedExpense[]; today: string; onExpenses: () => void }) {
   const { t, locale } = usePreferences()
   const currency = account?.manual_currency || 'EUR'
   const money = (value: number) => amountsHidden ? '••••••' : new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
@@ -173,7 +177,7 @@ function SavingsProgressPanel({ account, history, transactions, amountsHidden, e
   const current = account?.manual_balance == null ? null : Number(account.manual_balance)
   const previous = weekly.length > 1 ? weekly[weekly.length - 2].amount : null
   const weeklyChange = current != null && previous != null ? current - previous : null
-  const chartMax = Math.max(12000, ...weekly.map((item) => item.amount * 1.08))
+  const chartMax = Math.max(showGoal ? 12000 : 1, ...weekly.map((item) => item.amount * 1.08))
   const chartPoints = weekly.map((item, index) => ({
     ...item,
     x: weekly.length === 1 ? 320 : 28 + (index / (weekly.length - 1)) * 584,
@@ -207,32 +211,32 @@ function SavingsProgressPanel({ account, history, transactions, amountsHidden, e
   const progressMax = Math.min(100, Math.max(0, ((current || 0) / 12000) * 100))
   const review = recent.length
     ? `${t('savings.reviewMovements', { count: spendingMovements.length, spent: money(spent), received: money(received) })} ${savingsTransfers.length ? t('savings.reviewTransfers', { count: savingsTransfers.length }) : ''} ${largest ? t('savings.reviewLargest', { amount: money(Math.abs(Number(largest.amount))), name: largest.counterparty || largest.description }) : ''} ${repeated ? t('savings.reviewRecurring', { name: repeated[0], count: repeated[1] }) : t('savings.reviewNoRecurring')}`
-    : t('savings.reviewEmpty')
+    : t(showGoal ? 'savings.reviewEmpty' : 'savings.genericReviewEmpty')
   const momentum = current == null
-    ? t('savings.momentumStart')
+    ? t(showGoal ? 'savings.momentumStart' : 'savings.genericStart')
     : weeklyChange == null
-      ? t('savings.momentumFirst', { amount: money(current) })
+      ? t(showGoal ? 'savings.momentumFirst' : 'savings.genericFirst', { amount: money(current) })
       : weeklyChange >= 0
         ? t('savings.momentumUp', { amount: money(weeklyChange) })
         : t('savings.momentumDown', { amount: money(Math.abs(weeklyChange)) })
 
   return <section className="panel savings-panel">
-    <div className="savings-heading"><div><span className="eyebrow">{t('savings.eyebrow')}</span><h2>{t('savings.title')}</h2></div><span className="savings-badge"><Target size={16}/>{amountsHidden ? '••••••' : t('savings.goal')}</span></div>
+    <div className="savings-heading"><div><span className="eyebrow">{t(showGoal ? 'savings.eyebrow' : 'savings.genericEyebrow')}</span><h2>{t(showGoal ? 'savings.title' : 'savings.genericTitle')}</h2></div>{showGoal&&<span className="savings-badge"><Target size={16}/>{amountsHidden ? '••••••' : t('savings.goal')}</span>}</div>
     <div className={`savings-layout ${amountsHidden ? "amounts-hidden" : ""}`}>
       <div className="savings-chart-card">
         <div className="savings-metrics"><div><span>{t('savings.current')}</span><strong>{current == null ? '—' : money(current)}</strong></div><div><span>{t('savings.weeklyChange')}</span><b className={weeklyChange != null && weeklyChange < 0 ? 'negative' : ''}>{weeklyChange == null ? '—' : `${weeklyChange >= 0 ? '+' : '−'}${money(Math.abs(weeklyChange))}`}</b></div></div>
         <div className="chart-wrap">
           {amountsHidden ? <div className="chart-empty money-masked" aria-label={t("privacy.hidden")}>••••••</div> : chartPoints.length ? <svg viewBox="0 0 640 205" role="img" aria-label={t('savings.chartLabel')}>
             <defs><linearGradient id="savingsArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#38a882" stopOpacity=".28"/><stop offset="1" stopColor="#38a882" stopOpacity="0"/></linearGradient></defs>
-            <rect x="28" y={178 - (12000 / chartMax) * 150} width="584" height={(4000 / chartMax) * 150} rx="9" className="goal-band"/>
+            {showGoal&&<rect x="28" y={178 - (12000 / chartMax) * 150} width="584" height={(4000 / chartMax) * 150} rx="9" className="goal-band"/>}
             <line x1="28" y1="178" x2="612" y2="178" className="chart-axis"/>
             {chartPoints.length > 1 && <><path d={`M ${chartPoints.map((point) => `${point.x} ${point.y}`).join(' L ')} L ${chartPoints[chartPoints.length - 1].x} 178 L ${chartPoints[0].x} 178 Z`} fill="url(#savingsArea)"/><polyline points={chartPoints.map((point) => `${point.x},${point.y}`).join(' ')} className="savings-line"/></>}
             {chartPoints.map((point) => <g key={point.week}><circle cx={point.x} cy={point.y} r="5" className="savings-dot"/><title>{`${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${point.week}T12:00:00Z`))}: ${money(point.amount)}`}</title></g>)}
-          </svg> : <div className="chart-empty"><TrendingUp size={28}/><strong>{t('savings.emptyTitle')}</strong><span>{t('savings.emptyText')}</span></div>}
+          </svg> : <div className="chart-empty"><TrendingUp size={28}/><strong>{t('savings.emptyTitle')}</strong><span>{t(showGoal ? 'savings.emptyText' : 'savings.genericEmpty')}</span></div>}
         </div>
-        <div className="goal-progress"><div><span>{amountsHidden ? t('privacy.hidden') : t('savings.toMinimum')}</span><b>{amountsHidden ? '•••' : `${Math.round(progressMin)}%`}</b></div><i><span style={{ width: `${amountsHidden ? 0 : progressMin}%` }}/></i><div className="goal-range"><small>{amountsHidden ? '•••' : '€8K'}</small><small>{amountsHidden ? '•••' : `€12K · ${Math.round(progressMax)}%`}</small></div></div>
+        {showGoal&&<div className="goal-progress"><div><span>{amountsHidden ? t('privacy.hidden') : t('savings.toMinimum')}</span><b>{amountsHidden ? '•••' : `${Math.round(progressMin)}%`}</b></div><i><span style={{ width: `${amountsHidden ? 0 : progressMin}%` }}/></i><div className="goal-range"><small>{amountsHidden ? '•••' : '€8K'}</small><small>{amountsHidden ? '•••' : `€12K · ${Math.round(progressMax)}%`}</small></div></div>}
       </div>
-      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{amountsHidden ? t('privacy.reviewHidden') : review}</p><p className="momentum-note"><WalletCards size={17}/><span>{amountsHidden ? '••••••' : momentum}</span></p><FutureExpenseReview expenses={expenses} today={today} amountsHidden={amountsHidden} onOpen={onExpenses}/><small>{t('savings.reviewNote')}</small></aside>
+      <aside className="financial-review"><span className="review-icon"><Sparkles size={19}/></span><div><span className="eyebrow">{t('savings.reviewEyebrow')}</span><h3>{t('savings.reviewTitle')}</h3></div><p>{amountsHidden ? t('privacy.reviewHidden') : review}</p><p className="momentum-note"><WalletCards size={17}/><span>{amountsHidden ? '••••••' : momentum}</span></p><FutureExpenseReview expenses={expenses} today={today} amountsHidden={amountsHidden} onOpen={onExpenses}/><small>{t(showGoal ? 'savings.reviewNote' : 'savings.genericNote')}</small></aside>
     </div>
   </section>
 }
@@ -503,12 +507,10 @@ function SettingsView({ preview, integrationStatus, bankConnections }: { preview
   </>
 }
 
-function App() {
+function Hub({ session, profile, onLock }: {session: Session | null; profile: UserProfile; onLock: () => void}) {
   const { t, locale, countryName, documentName, language } = usePreferences()
   const preview = !isSupabaseConfigured || new URLSearchParams(window.location.search).has('preview')
-  const [session, setSession] = useState<Session | null>(null)
-  const [authReady, setAuthReady] = useState(!isSupabaseConfigured)
-  const [data, setData] = useState<HubData>(publicPreview)
+  const [data, setData] = useState<HubData>(preview ? publicPreview : { accounts: [], memberships: [], documents: [], documentFiles: [], notes: [], integrations: [], bankConnections: [], bankAccountCandidates: [], bankTransactions: [], savingsHistory: [], predictedExpenses: [] })
   const [page, setPage] = useState<Page>('overview')
   const [amountsHidden, setAmountsHidden] = useState(true)
   const today = useLocalToday()
@@ -528,12 +530,6 @@ function App() {
       ? current.predictedExpenses.filter(item => item.id !== expense.id)
       : [...current.predictedExpenses.filter(item => item.id !== expense.id), expense],
   }))
-  useEffect(() => {
-    if (!supabase) return
-    supabase.auth.getSession().then(({ data: auth }) => { setSession(auth.session); setAuthReady(true) })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); setAuthReady(true) })
-    return () => listener.subscription.unsubscribe()
-  }, [])
   useEffect(() => { if (session) refresh().catch(() => toast(t('app.connectFailed'))) }, [session])
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -567,11 +563,9 @@ function App() {
     }
   }, [data, query, language])
 
-  if (!authReady) return <div className="loading-screen"><Brand/><span className="loading-line"/></div>
-  if (!preview && !session) return <AuthGate/>
 
   const showPage = (next: Page) => { setPage(next); setDrawer(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-  const signOut = async () => { await supabase?.auth.signOut() }
+  const signOut = async () => { await supabase?.auth.signOut({scope:'local'}) }
   const integrationStatus = (provider: string) => data.integrations.find((item) => item.provider.toLowerCase() === provider.toLowerCase())?.connection_status ?? 'not_connected'
   const savingsAccount = filtered.accounts.find((account) => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')
   const currentAccount = filtered.accounts.find((account) => account.institution === 'Intesa Sanpaolo' && account.balance_mode !== 'manual')
@@ -602,24 +596,25 @@ function App() {
         <div className="topbar-fill"/>
         {(page === 'overview' || page === 'expenses' || page === 'analysis') && <button className="icon-button" aria-label={t(amountsHidden ? "privacy.show" : "privacy.hide")} title={t(amountsHidden ? "privacy.show" : "privacy.hide")} aria-pressed={!amountsHidden} onClick={() => setAmountsHidden(value => !value)}>{amountsHidden ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}
         <span className="date"><CalendarDays size={17}/>{new Intl.DateTimeFormat(locale,{weekday:'long',month:'short',day:'numeric'}).format(new Date())}</span>
-        <button className="profile" onClick={preview ? () => toast(t('app.previewMode')) : signOut}><span>GM</span><b>Gianluca<small>{preview ? t('app.preview') : t('app.personal')}</small></b>{preview ? <ShieldCheck size={16}/> : <LogOut size={16}/>}</button>
+        {!preview && <button className="icon-button" onClick={onLock} aria-label={t('pin.lock')} title={t('pin.lock')}><LockKeyhole size={18}/></button>}
+        <button className="profile" title={preview ? t('app.preview') : t('pin.switch')} onClick={preview ? () => toast(t('app.previewMode')) : signOut}><span>{profile.display_name.split(/\s+/).map(word=>word[0]).slice(0,2).join('').toUpperCase()}</span><b>{profile.display_name}<small>{preview ? t('app.preview') : t('app.personal')}</small></b>{preview ? <ShieldCheck size={16}/> : <LogOut size={16}/>}</button>
       </header>
       {!online && <div className="offline"><WifiOff size={16}/> {t('app.offline')}</div>}
       <div className="page-content">
         {page === 'overview' && <>
-          <section className="hero"><div><span className="eyebrow">{t('overview.eyebrow')}</span><h1>{t('overview.welcome')}</h1><p>{t('overview.subtitle')}</p><i/></div><img src={assetUrl('assets/lake-scene.svg')} alt=""/></section>
+          <section className="hero"><div><span className="eyebrow">{t('overview.eyebrow')}</span><h1>{t('overview.welcome',{name:profile.display_name})}</h1><p>{t('overview.subtitle')}</p><i/></div><img src={assetUrl('assets/lake-scene.svg')} alt=""/></section>
           <div className="dashboard-grid">
-            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard amountsHidden={amountsHidden} key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
+            <section className="panel accounts-panel"><div className="panel-heading"><h2>{t('overview.accounts')}</h2><button onClick={() => showPage('accounts')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="account-grid">{!visibleAccounts.length&&<p className="blank-hub">{t('overview.emptyAccounts')}</p>}{visibleAccounts.slice(0,5).map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard amountsHidden={amountsHidden} key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></section>
             <section className="panel quick-panel"><div className="panel-heading"><h2>{t('overview.quickAccess')}</h2></div><div className="quick-grid"><button onClick={() => setCreateKind('account')}><span><Plus size={21}/></span>{t('records.addAccount')}</button><button onClick={() => setCreateKind('membership')}><span><Star size={21}/></span>{t('records.addMembership')}</button><button onClick={() => showPage('documents')}><span><Upload size={21}/></span>{t('overview.uploadDocument')}</button><button onClick={() => showPage('notes')}><span><Pencil size={21}/></span>{t('overview.openNotes')}</button></div></section>
-            <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
-            <SavingsProgressPanel amountsHidden={amountsHidden} account={data.accounts.find(account => account.institution === 'Intesa Sanpaolo' && account.balance_mode === 'manual')} history={data.savingsHistory} transactions={intesaTransactions} expenses={data.predictedExpenses} today={today} onExpenses={() => showPage('expenses')}/>
+            <section className="panel memberships-panel"><div className="panel-heading"><h2>{t('overview.memberships')}</h2><button onClick={() => showPage('memberships')}>{t('common.viewAll')} <ChevronRight size={15}/></button></div><div className="membership-list">{!filtered.memberships.length&&<p className="blank-hub">{t('overview.emptyMemberships')}</p>}{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</div></section>
+            {<SavingsProgressPanel showGoal={profile.show_w212_goal} amountsHidden={amountsHidden} account={data.accounts.find(account => account.balance_mode === 'manual' && (!profile.show_w212_goal || account.institution === 'Intesa Sanpaolo'))} history={data.savingsHistory} transactions={profile.show_w212_goal ? intesaTransactions : data.bankTransactions.filter(tx=>tx.currency==='EUR' && tx.status!=='pending')} expenses={data.predictedExpenses} today={today} onExpenses={() => showPage('expenses')}/>}
             <FutureExpensesOverview expenses={data.predictedExpenses} today={today} amountsHidden={amountsHidden} onOpen={() => showPage('expenses')}/>
           </div>
         </>}
         {page === 'accounts' && <><PageHeader eyebrow={t('pages.financialServices')} title={t('nav.accounts')} action={<button className="primary-button compact" onClick={() => setCreateKind('account')}><Plus size={17}/> {t('records.addAccount')}</button>}/><div className="full-account-grid">{visibleAccounts.map((item) => { const bankAccount = bankAccountFor(item); return <AccountCard key={item.id} account={item} connection={bankAccount ? data.bankConnections.find(connection => connection.canonical_account_id === bankAccount.id) : undefined} onOpen={() => setSelected({kind:'account',item})}/> })}</div></>}
         {page === 'memberships' && <><PageHeader eyebrow={t('pages.loyalty')} title={t('nav.memberships')} action={<button className="primary-button compact" onClick={() => setCreateKind('membership')}><Plus size={17}/> {t('records.addMembership')}</button>}/><section className="panel standalone-list">{filtered.memberships.map((item) => <MembershipRow key={item.id} membership={item} onOpen={() => setSelected({kind:'membership',item})}/>)}</section></>}
         {page === 'travel' && <><PageHeader eyebrow={t('pages.journeys')} title={t('nav.travel')}/><section className="panel empty-panel"><EmptyState icon={Plane} title={t('pages.travelEmptyTitle')} text={t('pages.travelEmptyText')}/></section></>}
-        {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.payslipsSection')}</h2><p>{t('documents.payslipsText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Payslips').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.miscellaneousSection')}</h2><p>{t('documents.miscellaneousText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Miscellaneous').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div></>}
+        {page === 'documents' && <><PageHeader eyebrow={t('documents.privateStorage')} title={t('nav.documents')}/>{data.documents.some(d=>d.country==='Italy')&&<div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Italy')}</h2><p>{t('documents.identityHealth')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Italy').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div>}{data.documents.some(d=>d.country==='Brazil')&&<div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Brazil')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'Brazil').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div>}{data.documents.some(d=>d.country==='Peru')&&<div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{countryName('Peru')}</h2><p>{t('documents.personalRecords')}</p></div></div><div className="document-grid">{filtered.documents.filter(x=>x.country==='Peru').map(item=><DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file=>file.document_id===item.id)} refresh={refresh} toast={toast}/>)}</div></div>}<div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.payslipsSection')}</h2><p>{t('documents.payslipsText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Payslips').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div><div className="country-section"><div className="country-heading"><FolderClosed size={21}/><div><h2>{t('documents.miscellaneousSection')}</h2><p>{t('documents.miscellaneousText')}</p></div></div><div className="document-grid">{filtered.documents.filter(x => x.country === 'General' && x.document_type === 'Miscellaneous').map((item) => <DocumentCard key={item.id} item={item} files={data.documentFiles.filter(file => file.document_id === item.id)} refresh={refresh} toast={toast}/>)}</div></div></>}
         {page === 'notes' && <NotesView notes={filtered.notes} preview={preview} refresh={refresh} toast={toast}/>} 
         {page === 'expenses' && <PredictedExpensesView expenses={data.predictedExpenses} today={today} amountsHidden={amountsHidden} query={query} preview={preview} onChanged={expenseChanged} toast={toast}/>}
         {page === 'analysis' && <SpendingAnalysis transactions={data.bankTransactions} connections={data.bankConnections} today={today} amountsHidden={amountsHidden} refresh={refresh}/>}
@@ -632,4 +627,19 @@ function App() {
   </div>
 }
 
+function App() {
+  const preview = !isSupabaseConfigured || new URLSearchParams(location.search).has('preview')
+  const [session,setSession]=useState<Session|null>(null)
+  const [ready,setReady]=useState(!isSupabaseConfigured)
+  useEffect(()=>{
+    if(!supabase)return
+    void supabase.auth.getSession().then(({data})=>{setSession(data.session);setReady(true)})
+    const {data:listener}=supabase.auth.onAuthStateChange((_event,next)=>{setSession(next);setReady(true)})
+    return()=>listener.subscription.unsubscribe()
+  },[])
+  if(preview)return <Hub session={null} profile={{owner_id:'preview',display_name:'Gianluca',language:'en',show_w212_goal:true}} onLock={()=>undefined}/>
+  if(!ready)return <div className="loading-screen"><Brand/><span className="loading-line"/></div>
+  if(!session)return <AuthGate/>
+  return <PrivateSession key={session.user.id} session={session}>{(profile,onLock)=><Hub session={session} profile={profile} onLock={onLock}/>}</PrivateSession>
+}
 export default App

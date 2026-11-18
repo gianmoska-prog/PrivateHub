@@ -22,6 +22,11 @@ export async function requireUser(req: Request): Promise<User> {
   if (!authorization.startsWith('Bearer ')) throw new Error('UNAUTHORISED')
   const { data, error } = await admin().auth.getUser(authorization.slice(7))
   if (error || !data.user) throw new Error('UNAUTHORISED')
+  const caller = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false },
+  })
+  const { data: access, error: accessError } = await caller.rpc('private_hub_access', { action: 'status' })
+  if (accessError || !access?.unlocked) throw new Error('PIN_LOCKED')
   const { data: owner } = await admin().from('accounts').select('id').eq('owner_id', data.user.id).limit(1).maybeSingle()
   if (!owner) throw new Error('FORBIDDEN')
   return data.user
