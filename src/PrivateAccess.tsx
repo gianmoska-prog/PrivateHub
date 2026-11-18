@@ -21,7 +21,7 @@ export function LanguagePicker() {
   return <label className="access-language"><Globe2 size={16}/><span className="sr-only">{t('settings.language')}</span><select value={language} onChange={e=>setLanguage(e.target.value as Language)}><option value="en">English</option><option value="it">Italiano</option><option value="es">Español</option></select></label>
 }
 
-function PinScreen({ profile, status, recovery, onUnlocked, onSignOut }: { profile: UserProfile; status: AccessStatus; recovery: boolean; onUnlocked: (status: AccessStatus) => void; onSignOut: () => void }) {
+export function PinScreen({ profile, status, recovery, onUnlocked, onSignOut }: { profile: UserProfile; status: AccessStatus; recovery: boolean; onUnlocked: (status: AccessStatus) => void; onSignOut: () => void }) {
   const { t, locale } = usePreferences()
   const [digits, setDigits] = useState('')
   const [firstPin, setFirstPin] = useState('')
@@ -79,7 +79,7 @@ function PinScreen({ profile, status, recovery, onUnlocked, onSignOut }: { profi
     </section></main>
 }
 
-function Welcome({name,onClose}:{name:string;onClose:()=>void}) {
+export function Welcome({name,onClose}:{name:string;onClose:()=>void}) {
   const {t}=usePreferences()
   const dialog=useRef<HTMLDialogElement>(null)
   useEffect(()=>{dialog.current?.showModal();return()=>dialog.current?.close()},[])

@@ -13,3 +13,5 @@
 @media(prefers-reduced-motion:reduce){.pin-aura,.pin-card,.pin-shake,.welcome-card,.welcome-backdrop{animation:none}.pin-keypad button,.pin-dots span{transition:none}}
 
 .welcome-card{margin:auto;max-height:calc(100svh - 48px);overflow-y:auto}.welcome-card::backdrop{background:#14203155;backdrop-filter:blur(14px)}.auth-device-note{font-size:12px!important;line-height:1.7!important}
+
+@media(max-height:640px){.pin-screen{padding-top:66px;padding-bottom:12px}.pin-emblem,.pin-protected{display:none}.pin-dots{margin-top:16px;margin-bottom:6px}.pin-feedback{min-height:32px}.pin-text-button{padding:7px 12px}}

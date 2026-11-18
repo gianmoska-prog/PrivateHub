@@ -15,7 +15,7 @@ create table public.user_profiles (
   created_at timestamptz not null default now()
 );
 alter table public.user_profiles enable row level security;
-revoke all on public.user_profiles from public, anon, authenticated;
+revoke all on public.user_profiles from public, anon, authenticated, service_role;
 grant select on public.user_profiles to authenticated;
 grant update (display_name, language) on public.user_profiles to authenticated;
 grant select, insert, update, delete on public.user_profiles to service_role;
